@@ -640,16 +640,14 @@
             }, 100);
         }
 
-        // VOICE CHAT SYSTEM - 100% WORKING
+        // VOICE CHAT SYSTEM - SIMPLE AND WORKING
         function initializeVoiceChat() {
             if (!gameState.gameCode) return;
             
             console.log('🎧 Initializing voice chat...');
             
             // Connect to WebSocket
-            socket = io(gameState.backendUrl, {
-                transports: ['websocket', 'polling']
-            });
+            socket = io(gameState.backendUrl);
             
             socket.on('connect', () => {
                 console.log('✅ VOICE CONNECTED');
@@ -683,7 +681,7 @@
             });
             
             socket.on('voice_stream', (data) => {
-                console.log('🎧 Received voice from:', data.username);
+                console.log('🎧 Received voice data from:', data.username);
                 if (isSpeakerActive) {
                     playReceivedAudio(data.audio_data);
                     updateOpponentStatus('Speaking...');
@@ -720,11 +718,7 @@
                 console.log('🎤 Requesting microphone permission...');
                 
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    } 
+                    audio: true
                 });
                 
                 stream.getTracks().forEach(track => track.stop());
@@ -766,19 +760,11 @@
                 console.log('🎤 Starting recording...');
                 
                 localStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true,
-                        channelCount: 1,
-                        sampleRate: 16000
-                    } 
+                    audio: true
                 });
                 
-                // Create MediaRecorder with WebM format
-                mediaRecorder = new MediaRecorder(localStream, {
-                    mimeType: 'audio/webm;codecs=opus'
-                });
+                // Use basic MediaRecorder
+                mediaRecorder = new MediaRecorder(localStream);
                 
                 let chunks = [];
                 
@@ -786,13 +772,14 @@
                     if (event.data.size > 0) {
                         chunks.push(event.data);
                         
-                        const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+                        const blob = new Blob(chunks, { type: 'audio/webm' });
                         const reader = new FileReader();
                         
                         reader.onload = () => {
                             const base64data = reader.result.split(',')[1];
                             
                             if (socket && socket.connected) {
+                                console.log('📤 Sending voice data:', base64data.length, 'bytes');
                                 socket.emit('voice_data', {
                                     game_code: gameState.gameCode,
                                     user_id: gameState.userData.id,
@@ -844,25 +831,16 @@
 
         function playReceivedAudio(audioData) {
             try {
-                // Convert base64 to binary
-                const binaryString = atob(audioData);
-                const bytes = new Uint8Array(binaryString.length);
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i);
-                }
-                
-                // Create blob and play
-                const blob = new Blob([bytes], { type: 'audio/webm;codecs=opus' });
-                const url = URL.createObjectURL(blob);
+                console.log('🔊 Playing received audio...');
                 
                 const audio = new Audio();
-                audio.src = url;
+                audio.src = 'data:audio/webm;base64,' + audioData;
                 audio.volume = 1.0;
                 
                 audio.play().then(() => {
-                    console.log('🔊 Audio played successfully');
+                    console.log('✅ Audio played successfully');
                 }).catch(e => {
-                    console.log('🔊 Audio play error:', e);
+                    console.log('❌ Audio play failed:', e);
                 });
                 
             } catch (error) {
@@ -881,7 +859,7 @@
         function testAudioPlayback() {
             console.log('🔊 Testing audio playback...');
             
-            // Create a simple beep sound
+            // Create a simple beep sound using Web Audio API
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
@@ -912,14 +890,14 @@
                 return;
             }
             
-            showNotification('Voice test: Speak for 3 seconds...');
+            showNotification('🎤 Voice test: Speak for 3 seconds...');
             
             if (!isMicActive) {
                 startRecording();
                 setTimeout(() => {
                     if (isMicActive) {
                         stopRecording();
-                        showNotification('Voice test complete! Ask opponent if they heard you.');
+                        showNotification('✅ Voice test complete! Ask opponent if they heard you.');
                     }
                 }, 3000);
             }
