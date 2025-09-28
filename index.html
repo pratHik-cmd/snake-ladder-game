@@ -298,20 +298,23 @@
             const board = document.getElementById('gameBoard');
             board.innerHTML = '';
             
-            // Create board with proper numbering (1 to 100)
+            // PERFECT BOARD NUMBERING: 1 to 100
+            // Bottom row: 1-10 (left to right)
+            // Next row: 11-20 (right to left) and so on...
             for (let row = 9; row >= 0; row--) {
                 for (let col = 0; col < 10; col++) {
-                    let position;
-                    if (row % 2 === 0) {
-                        // Even rows: left to right
-                        position = row * 10 + col + 1;
-                    } else {
-                        // Odd rows: right to left  
-                        position = row * 10 + (10 - col);
-                    }
-                    
                     const cell = document.createElement('div');
                     cell.className = 'cell';
+                    
+                    let position;
+                    if (row % 2 === 0) {
+                        // Even rows (9,7,5,3,1): left to right
+                        position = row * 10 + col + 1;
+                    } else {
+                        // Odd rows (8,6,4,2,0): right to left
+                        position = (row + 1) * 10 - col;
+                    }
+                    
                     cell.innerHTML = `<div>${position}</div>`;
                     
                     // Add snake/ladder indicators
@@ -465,5 +468,6 @@
     </script>
 </body>
 </html>
+
 
 
