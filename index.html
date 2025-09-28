@@ -175,6 +175,28 @@
             font-size: 12px;
             color: #ccc;
         }
+        .permission-warning {
+            background: #ff9800;
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .test-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .test-btn {
+            padding: 8px 12px;
+            background: #9c27b0;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -210,18 +232,36 @@
             <!-- Voice Chat Section -->
             <div class="voice-chat-container" id="voiceChatContainer" style="display: none;">
                 <h3 style="text-align: center; margin-bottom: 10px;">🎤 Voice Chat</h3>
+                
+                <div id="permissionWarning" class="permission-warning" style="display: none;">
+                    <p>🔒 Microphone permission required for voice chat</p>
+                    <button onclick="requestMicrophonePermission()" style="padding: 8px 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 5px;">
+                        Allow Microphone
+                    </button>
+                </div>
+
                 <div class="voice-controls">
                     <button class="voice-btn voice-btn-mic" id="micBtn" onclick="toggleMicrophone()">
                         <span id="micIcon">🎤</span>
-                        <span id="micText">Mic On</span>
+                        <span id="micText">Start Mic</span>
                     </button>
                     <button class="voice-btn voice-btn-speaker" id="speakerBtn" onclick="toggleSpeaker()">
                         <span id="speakerIcon">🔊</span>
                         <span id="speakerText">Speaker On</span>
                     </button>
                 </div>
+
+                <div class="test-buttons">
+                    <button class="test-btn" onclick="testVoiceConnection()">Test Voice</button>
+                    <button class="test-btn" onclick="checkAudioPermissions()">Check Permissions</button>
+                </div>
+
                 <div class="voice-participants" id="voiceParticipants">
                     <!-- Participants will be added here dynamically -->
+                </div>
+
+                <div id="connectionStatus" style="margin-top: 10px; font-size: 12px; text-align: center;">
+                    Voice Status: <span id="statusText">Disconnected</span>
                 </div>
             </div>
             
@@ -250,10 +290,12 @@
         let localStream = null;
         let mediaRecorder = null;
         let isRecording = false;
-        let isMicMuted = false;
-        let isSpeakerMuted = false;
+        let isMicEnabled = false;
+        let isSpeakerEnabled = true;
         let voiceParticipants = {};
         let audioElements = {};
+        let audioContext = null;
+        let permissionGranted = false;
 
         let tg = window.Telegram?.WebApp;
         let pollInterval;
@@ -269,6 +311,9 @@
             if (gameCode) {
                 joinGameWithCode(gameCode);
             }
+
+            // Check audio permissions on startup
+            checkAudioPermissions();
         }
 
         function showMainMenu() {
@@ -576,34 +621,47 @@
             }, 100);
         }
 
-        // Voice Chat Functions
+        // Voice Chat Functions - FIXED VERSION
         function initializeVoiceChat() {
             if (!gameState.gameCode) return;
             
+            console.log('Initializing voice chat for game:', gameState.gameCode);
+            
             // Connect to WebSocket server
-            socket = io(gameState.backendUrl);
+            socket = io(gameState.backendUrl, {
+                transports: ['websocket', 'polling']
+            });
             
             socket.on('connect', () => {
-                console.log('Connected to voice server');
+                console.log('✅ Connected to voice server');
+                updateConnectionStatus('Connected');
                 joinVoiceRoom();
             });
             
             socket.on('disconnect', () => {
-                console.log('Disconnected from voice server');
+                console.log('❌ Disconnected from voice server');
+                updateConnectionStatus('Disconnected');
+            });
+            
+            socket.on('connected', (data) => {
+                console.log('Server connection confirmed:', data);
             });
             
             socket.on('user_joined_voice', (data) => {
+                console.log('User joined voice:', data);
                 showNotification(data.message);
                 addVoiceParticipant(data.user_id, data.username);
             });
             
             socket.on('user_left_voice', (data) => {
+                console.log('User left voice:', data);
                 showNotification(data.message);
                 removeVoiceParticipant(data.user_id);
             });
             
             socket.on('voice_stream', (data) => {
-                if (!isSpeakerMuted) {
+                console.log('Received voice data from:', data.username);
+                if (isSpeakerEnabled) {
                     playAudioStream(data.user_id, data.audio_data);
                 }
             });
@@ -611,10 +669,18 @@
             socket.on('user_voice_status', (data) => {
                 updateVoiceStatus(data.user_id, data.is_speaking);
             });
+            
+            // Check permissions again when voice chat initializes
+            checkAudioPermissions();
         }
 
         function joinVoiceRoom() {
-            if (!socket || !gameState.gameCode || !gameState.userData) return;
+            if (!socket || !gameState.gameCode || !gameState.userData) {
+                console.log('Cannot join voice room: missing data');
+                return;
+            }
+            
+            console.log('Joining voice room for game:', gameState.gameCode);
             
             socket.emit('join_voice_room', {
                 game_code: gameState.gameCode,
@@ -708,31 +774,84 @@
         }
 
         async function toggleMicrophone() {
-            if (isMicMuted) {
-                await startRecording();
-            } else {
-                stopRecording();
+            if (!permissionGranted) {
+                await requestMicrophonePermission();
+                return;
             }
-            
-            isMicMuted = !isMicMuted;
-            updateMicButton();
+
+            if (isMicEnabled) {
+                await stopRecording();
+            } else {
+                await startRecording();
+            }
+        }
+
+        async function requestMicrophonePermission() {
+            try {
+                console.log('Requesting microphone permission...');
+                
+                // Test microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: 1,
+                        sampleRate: 16000
+                    },
+                    video: false
+                });
+                
+                // Stop the test stream immediately
+                stream.getTracks().forEach(track => track.stop());
+                
+                permissionGranted = true;
+                document.getElementById('permissionWarning').style.display = 'none';
+                showNotification('Microphone permission granted!');
+                console.log('Microphone permission granted');
+                
+                // Enable mic button
+                isMicEnabled = false;
+                updateMicButton();
+                
+            } catch (error) {
+                console.error('Microphone permission denied:', error);
+                document.getElementById('permissionWarning').style.display = 'block';
+                showNotification('Microphone permission denied. Please allow microphone access.');
+                permissionGranted = false;
+                isMicEnabled = false;
+                updateMicButton();
+            }
         }
 
         async function startRecording() {
+            if (!permissionGranted) {
+                await requestMicrophonePermission();
+                return;
+            }
+
             try {
-                // Request microphone access
+                console.log('Starting recording...');
+                
+                // Get microphone stream
                 localStream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
                         echoCancellation: true,
                         noiseSuppression: true,
-                        autoGainControl: true
-                    } 
+                        autoGainControl: true,
+                        channelCount: 1,
+                        sampleRate: 16000
+                    },
+                    video: false
                 });
                 
-                // Create media recorder
-                mediaRecorder = new MediaRecorder(localStream, {
-                    mimeType: 'audio/webm;codecs=opus'
-                });
+                // Create media recorder with OPUS codec for better quality
+                const options = {
+                    mimeType: 'audio/webm;codecs=opus',
+                    audioBitsPerSecond: 16000
+                };
+                
+                mediaRecorder = new MediaRecorder(localStream, options);
                 
                 let chunks = [];
                 
@@ -743,6 +862,7 @@
                         // Convert to base64 for transmission
                         const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
                         const reader = new FileReader();
+                        
                         reader.onload = () => {
                             const base64data = reader.result.split(',')[1];
                             
@@ -751,6 +871,7 @@
                                 socket.emit('voice_data', {
                                     game_code: gameState.gameCode,
                                     user_id: gameState.userData.id,
+                                    username: gameState.userData.first_name || 'Player',
                                     audio_data: base64data,
                                     timestamp: Date.now()
                                 });
@@ -764,22 +885,28 @@
                                 });
                             }
                         };
+                        
                         reader.readAsDataURL(blob);
-                        chunks = [];
+                        chunks = []; // Clear chunks for next recording
                     }
                 };
                 
                 // Start recording with small chunks for real-time transmission
                 mediaRecorder.start(100); // Collect data every 100ms
                 isRecording = true;
+                isMicEnabled = true;
                 
                 // Update UI
                 updateVoiceStatus(gameState.userData.id, true);
+                updateMicButton();
+                showNotification('Microphone activated');
+                
+                console.log('Recording started');
                 
             } catch (error) {
-                console.error('Error accessing microphone:', error);
-                showNotification('Microphone access denied');
-                isMicMuted = true;
+                console.error('Error starting recording:', error);
+                showNotification('Error starting microphone');
+                isMicEnabled = false;
                 updateMicButton();
             }
         }
@@ -795,6 +922,8 @@
                 localStream = null;
             }
             
+            isMicEnabled = false;
+            
             // Update speaking status
             if (socket && gameState.gameCode && gameState.userData) {
                 socket.emit('voice_status', {
@@ -806,30 +935,50 @@
             }
             
             updateVoiceStatus(gameState.userData.id, false);
+            updateMicButton();
+            showNotification('Microphone off');
+            
+            console.log('Recording stopped');
         }
 
         function playAudioStream(userId, audioData) {
-            if (!audioElements[userId]) {
-                audioElements[userId] = new Audio();
+            try {
+                if (!audioElements[userId]) {
+                    audioElements[userId] = new Audio();
+                    audioElements[userId].volume = 1.0;
+                }
+                
+                const audio = audioElements[userId];
+                
+                // Create blob URL from base64 data
+                const binaryString = atob(audioData);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                const blob = new Blob([bytes], { type: 'audio/webm;codecs=opus' });
+                const url = URL.createObjectURL(blob);
+                
+                audio.src = url;
+                audio.play().catch(e => console.log('Audio play error:', e));
+                
+                // Update speaking status
+                updateVoiceStatus(userId, true);
+                
+                // Reset speaking status after a short delay
+                setTimeout(() => {
+                    updateVoiceStatus(userId, false);
+                }, 500);
+                
+            } catch (error) {
+                console.error('Error playing audio:', error);
             }
-            
-            const audio = audioElements[userId];
-            audio.src = 'data:audio/webm;codecs=opus;base64,' + audioData;
-            audio.play().catch(e => console.log('Audio play error:', e));
-            
-            // Update speaking status
-            updateVoiceStatus(userId, true);
-            
-            // Reset speaking status after a short delay
-            setTimeout(() => {
-                updateVoiceStatus(userId, false);
-            }, 500);
         }
 
         function toggleSpeaker() {
-            isSpeakerMuted = !isSpeakerMuted;
+            isSpeakerEnabled = !isSpeakerEnabled;
             updateSpeakerButton();
-            showNotification(isSpeakerMuted ? 'Speaker muted' : 'Speaker on');
+            showNotification(isSpeakerEnabled ? 'Speaker on' : 'Speaker muted');
         }
 
         function updateMicButton() {
@@ -837,14 +986,21 @@
             const micIcon = document.getElementById('micIcon');
             const micText = document.getElementById('micText');
             
-            if (isMicMuted) {
+            if (!permissionGranted) {
                 micBtn.classList.add('muted');
-                micIcon.textContent = '🎤';
-                micText.textContent = 'Mic Off';
-            } else {
+                micIcon.textContent = '🔒';
+                micText.textContent = 'Allow Mic';
+                return;
+            }
+            
+            if (isMicEnabled) {
                 micBtn.classList.remove('muted');
                 micIcon.textContent = '🎤';
                 micText.textContent = 'Mic On';
+            } else {
+                micBtn.classList.add('muted');
+                micIcon.textContent = '🎤';
+                micText.textContent = 'Start Mic';
             }
         }
 
@@ -853,14 +1009,75 @@
             const speakerIcon = document.getElementById('speakerIcon');
             const speakerText = document.getElementById('speakerText');
             
-            if (isSpeakerMuted) {
-                speakerBtn.classList.add('muted');
-                speakerIcon.textContent = '🔇';
-                speakerText.textContent = 'Speaker Off';
-            } else {
+            if (isSpeakerEnabled) {
                 speakerBtn.classList.remove('muted');
                 speakerIcon.textContent = '🔊';
                 speakerText.textContent = 'Speaker On';
+            } else {
+                speakerBtn.classList.add('muted');
+                speakerIcon.textContent = '🔇';
+                speakerText.textContent = 'Speaker Off';
+            }
+        }
+
+        function updateConnectionStatus(status) {
+            document.getElementById('statusText').textContent = status;
+            document.getElementById('statusText').style.color = status === 'Connected' ? '#4CAF50' : '#f44336';
+        }
+
+        function checkAudioPermissions() {
+            navigator.mediaDevices.enumerateDevices()
+                .then(devices => {
+                    const audioDevices = devices.filter(device => device.kind === 'audioinput');
+                    if (audioDevices.length > 0) {
+                        console.log('Audio devices found:', audioDevices);
+                        permissionGranted = true;
+                        document.getElementById('permissionWarning').style.display = 'none';
+                    } else {
+                        console.log('No audio devices found');
+                        permissionGranted = false;
+                        document.getElementById('permissionWarning').style.display = 'block';
+                    }
+                    updateMicButton();
+                })
+                .catch(error => {
+                    console.error('Error checking audio devices:', error);
+                    permissionGranted = false;
+                    document.getElementById('permissionWarning').style.display = 'block';
+                    updateMicButton();
+                });
+        }
+
+        function testVoiceConnection() {
+            if (!socket || !socket.connected) {
+                showNotification('Not connected to voice server');
+                return;
+            }
+            
+            if (!permissionGranted) {
+                showNotification('Microphone permission required');
+                return;
+            }
+            
+            showNotification('Testing voice connection...');
+            
+            // Send a test message
+            if (socket && gameState.gameCode && gameState.userData) {
+                socket.emit('voice_status', {
+                    game_code: gameState.gameCode,
+                    user_id: gameState.userData.id,
+                    username: gameState.userData.first_name || 'Player',
+                    is_speaking: true
+                });
+                
+                setTimeout(() => {
+                    socket.emit('voice_status', {
+                        game_code: gameState.gameCode,
+                        user_id: gameState.userData.id,
+                        username: gameState.userData.first_name || 'Player',
+                        is_speaking: false
+                    });
+                }, 1000);
             }
         }
 
@@ -871,7 +1088,7 @@
             setTimeout(() => notification.style.display = 'none', 3000);
         }
 
-        // Initialize mic and speaker buttons
+        // Initialize buttons
         updateMicButton();
         updateSpeakerButton();
 
