@@ -242,14 +242,12 @@
             gameActive: false,
             gameCode: null,
             userData: null,
-            backendUrl: 'https://cot-8kof.onrender.com/api'
+            backendUrl: 'https://cot-8kof.onrender.com'
         };
 
         // Voice Chat Variables
         let socket = null;
         let localStream = null;
-        let audioContext = null;
-        let destinationNode = null;
         let mediaRecorder = null;
         let isRecording = false;
         let isMicMuted = false;
@@ -289,7 +287,7 @@
             const user = gameState.userData || {id: Date.now(), first_name: 'Player'};
             
             try {
-                const response = await fetch(gameState.backendUrl + '/create_game', {
+                const response = await fetch(gameState.backendUrl + '/api/create_game', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -321,7 +319,7 @@
             const user = gameState.userData || {id: Date.now(), first_name: 'Player'};
             
             try {
-                const response = await fetch(gameState.backendUrl + '/join_game', {
+                const response = await fetch(gameState.backendUrl + '/api/join_game', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -362,7 +360,7 @@
             if (!gameState.gameCode) return;
             
             try {
-                const response = await fetch(gameState.backendUrl + '/game_state', {
+                const response = await fetch(gameState.backendUrl + '/api/game_state', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({game_code: gameState.gameCode})
@@ -551,7 +549,7 @@
                     
                     setTimeout(async () => {
                         try {
-                            const response = await fetch(gameState.backendUrl + '/make_move', {
+                            const response = await fetch(gameState.backendUrl + '/api/make_move', {
                                 method: 'POST',
                                 headers: {'Content-Type': 'application/json'},
                                 body: JSON.stringify({
@@ -583,8 +581,7 @@
             if (!gameState.gameCode) return;
             
             // Connect to WebSocket server
-            const backendUrl = gameState.backendUrl.replace('/api', '');
-            socket = io(backendUrl);
+            socket = io(gameState.backendUrl);
             
             socket.on('connect', () => {
                 console.log('Connected to voice server');
@@ -641,12 +638,6 @@
             // Stop recording if active
             if (isRecording) {
                 stopRecording();
-            }
-            
-            // Close audio context
-            if (audioContext) {
-                audioContext.close();
-                audioContext = null;
             }
             
             // Disconnect socket
@@ -738,10 +729,6 @@
                     } 
                 });
                 
-                // Create audio context for processing
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                destinationNode = audioContext.createMediaStreamDestination();
-                
                 // Create media recorder
                 mediaRecorder = new MediaRecorder(localStream, {
                     mimeType: 'audio/webm;codecs=opus'
@@ -772,4 +759,123 @@
                                 socket.emit('voice_status', {
                                     game_code: gameState.gameCode,
                                     user_id: gameState.userData.id,
-                                    username: gameState.userData.first_name || 'Player
+                                    username: gameState.userData.first_name || 'Player',
+                                    is_speaking: true
+                                });
+                            }
+                        };
+                        reader.readAsDataURL(blob);
+                        chunks = [];
+                    }
+                };
+                
+                // Start recording with small chunks for real-time transmission
+                mediaRecorder.start(100); // Collect data every 100ms
+                isRecording = true;
+                
+                // Update UI
+                updateVoiceStatus(gameState.userData.id, true);
+                
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                showNotification('Microphone access denied');
+                isMicMuted = true;
+                updateMicButton();
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+            }
+            
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            
+            // Update speaking status
+            if (socket && gameState.gameCode && gameState.userData) {
+                socket.emit('voice_status', {
+                    game_code: gameState.gameCode,
+                    user_id: gameState.userData.id,
+                    username: gameState.userData.first_name || 'Player',
+                    is_speaking: false
+                });
+            }
+            
+            updateVoiceStatus(gameState.userData.id, false);
+        }
+
+        function playAudioStream(userId, audioData) {
+            if (!audioElements[userId]) {
+                audioElements[userId] = new Audio();
+            }
+            
+            const audio = audioElements[userId];
+            audio.src = 'data:audio/webm;codecs=opus;base64,' + audioData;
+            audio.play().catch(e => console.log('Audio play error:', e));
+            
+            // Update speaking status
+            updateVoiceStatus(userId, true);
+            
+            // Reset speaking status after a short delay
+            setTimeout(() => {
+                updateVoiceStatus(userId, false);
+            }, 500);
+        }
+
+        function toggleSpeaker() {
+            isSpeakerMuted = !isSpeakerMuted;
+            updateSpeakerButton();
+            showNotification(isSpeakerMuted ? 'Speaker muted' : 'Speaker on');
+        }
+
+        function updateMicButton() {
+            const micBtn = document.getElementById('micBtn');
+            const micIcon = document.getElementById('micIcon');
+            const micText = document.getElementById('micText');
+            
+            if (isMicMuted) {
+                micBtn.classList.add('muted');
+                micIcon.textContent = '🎤';
+                micText.textContent = 'Mic Off';
+            } else {
+                micBtn.classList.remove('muted');
+                micIcon.textContent = '🎤';
+                micText.textContent = 'Mic On';
+            }
+        }
+
+        function updateSpeakerButton() {
+            const speakerBtn = document.getElementById('speakerBtn');
+            const speakerIcon = document.getElementById('speakerIcon');
+            const speakerText = document.getElementById('speakerText');
+            
+            if (isSpeakerMuted) {
+                speakerBtn.classList.add('muted');
+                speakerIcon.textContent = '🔇';
+                speakerText.textContent = 'Speaker Off';
+            } else {
+                speakerBtn.classList.remove('muted');
+                speakerIcon.textContent = '🔊';
+                speakerText.textContent = 'Speaker On';
+            }
+        }
+
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+            setTimeout(() => notification.style.display = 'none', 3000);
+        }
+
+        // Initialize mic and speaker buttons
+        updateMicButton();
+        updateSpeakerButton();
+
+        window.addEventListener('DOMContentLoaded', initGame);
+    </script>
+</body>
+</html>
