@@ -33,13 +33,54 @@
             width: 100%; aspect-ratio: 1/1; border: 2px solid #333; 
             border-radius: 10px; background: white; margin: 15px 0;
         }
-        .cell { border: 1px solid #ddd; position: relative; }
-        .cell-number { position: absolute; top: 2px; left: 2px; font-size: 8px; color: #666; }
-        .player { width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; position: absolute; }
+        .cell { 
+            border: 1px solid #ddd; 
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #333;
+            font-weight: bold;
+        }
+        .player { 
+            width: 12px; 
+            height: 12px; 
+            border-radius: 50%; 
+            border: 2px solid white; 
+            position: absolute;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .player-0 { top: 3px; left: 3px; }
+        .player-1 { bottom: 3px; right: 3px; }
+        .dice-container {
+            display: flex;
+            justify-content: center;
+            margin: 15px 0;
+        }
         .dice { 
-            width: 60px; height: 60px; background: #ffd89b; 
-            border: none; border-radius: 10px; font-size: 24px; 
-            cursor: pointer; margin: 10px auto; display: block;
+            width: 60px; 
+            height: 60px; 
+            background: linear-gradient(135deg, #ffd89b, #19547b);
+            border: none; 
+            border-radius: 10px; 
+            font-size: 24px; 
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.3s;
+        }
+        .dice:active {
+            transform: scale(0.95);
+        }
+        .dice.rolling {
+            animation: rollDice 0.5s ease-in-out;
+        }
+        @keyframes rollDice {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(1.1); }
+            100% { transform: rotate(360deg) scale(1); }
         }
         .game-info { background: rgba(255,255,255,0.1); padding: 10px; border-radius: 10px; margin: 10px 0; }
         .notification {
@@ -54,6 +95,8 @@
             width: 100%; padding: 12px; border-radius: 10px; 
             border: none; margin: 10px 0; font-size: 16px;
         }
+        .snake { color: #e53e3e; font-size: 12px; }
+        .ladder { color: #38a169; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -82,7 +125,9 @@
             
             <div class="board" id="gameBoard"></div>
 
-            <button class="dice" id="diceBtn" onclick="rollDice()">🎲</button>
+            <div class="dice-container">
+                <button class="dice" id="diceBtn" onclick="rollDice()">🎲</button>
+            </div>
             
             <button class="btn" onclick="showMainMenu()" style="background: #666;">🏠 Main Menu</button>
         </div>
@@ -223,9 +268,8 @@
         }
 
         function updateGameUI(gameData) {
-            // Convert players object to array
             const playersArray = Object.entries(gameData.players || {}).map(([id, player]) => ({
-                id: parseInt(id), // Convert back to number for comparison
+                id: parseInt(id),
                 username: player.username,
                 position: player.position,
                 color: player.color
@@ -254,15 +298,36 @@
             const board = document.getElementById('gameBoard');
             board.innerHTML = '';
             
-            for (let row = 10; row >= 1; row--) {
-                for (let col = 1; col <= 10; col++) {
-                    const position = row % 2 === 0 ? (row-1)*10 + col : (row-1)*10 + (11-col);
+            // Create board with proper numbering (1 to 100)
+            for (let row = 9; row >= 0; row--) {
+                for (let col = 0; col < 10; col++) {
+                    let position;
+                    if (row % 2 === 0) {
+                        // Even rows: left to right
+                        position = row * 10 + col + 1;
+                    } else {
+                        // Odd rows: right to left  
+                        position = row * 10 + (10 - col);
+                    }
+                    
                     const cell = document.createElement('div');
                     cell.className = 'cell';
-                    cell.innerHTML = `<div class="cell-number">${position}</div>`;
+                    cell.innerHTML = `<div>${position}</div>`;
                     
-                    if (snakes[position]) cell.innerHTML += '🐍';
-                    if (ladders[position]) cell.innerHTML += '🪜';
+                    // Add snake/ladder indicators
+                    if (snakes[position]) {
+                        cell.innerHTML += `<div class="snake">🐍 ${snakes[position]}</div>`;
+                    }
+                    if (ladders[position]) {
+                        cell.innerHTML += `<div class="ladder">🪜 ${ladders[position]}</div>`;
+                    }
+                    
+                    // Color alternate cells
+                    if ((row + col) % 2 === 0) {
+                        cell.style.background = '#f0f8ff';
+                    } else {
+                        cell.style.background = '#e6f3ff';
+                    }
                     
                     board.appendChild(cell);
                 }
@@ -274,13 +339,12 @@
             container.innerHTML = '';
             
             gameState.players.forEach((player, index) => {
-                // FIX: Compare as numbers
                 const isCurrent = player.id === gameState.currentPlayer;
                 container.innerHTML += `
                     <div style="display: flex; justify-content: space-between; padding: 5px; 
                          background: ${isCurrent ? 'rgba(255,255,255,0.2)' : 'transparent'};">
                         <span>${player.username}</span>
-                        <span>Pos: ${player.position}</span>
+                        <span>Position: ${player.position}</span>
                     </div>
                 `;
             });
@@ -291,28 +355,31 @@
             
             const winner = gameState.players.find(p => p.position === 100);
             if (winner) {
-                status.innerHTML = `🎉 ${winner.username} Wins!`;
+                status.innerHTML = `🎉 ${winner.username} Wins! 🏆`;
                 gameState.gameActive = false;
+                document.getElementById('diceBtn').disabled = true;
                 return;
             }
             
             if (!gameState.gameActive) {
                 status.innerHTML = '⏳ Waiting for players...';
+                document.getElementById('diceBtn').disabled = true;
                 return;
             }
             
             const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
             const user = gameState.userData;
             
-            // FIX: Proper turn check
             const isMyTurn = currentPlayer && user && currentPlayer.id === user.id;
             
             if (isMyTurn) {
                 status.innerHTML = `🎯 YOUR TURN - Roll the dice!`;
                 document.getElementById('diceBtn').disabled = false;
+                document.getElementById('diceBtn').style.background = 'linear-gradient(135deg, #4CAF50, #45a049)';
             } else {
                 status.innerHTML = `⏳ ${currentPlayer?.username}'s turn - Waiting...`;
                 document.getElementById('diceBtn').disabled = true;
+                document.getElementById('diceBtn').style.background = 'linear-gradient(135deg, #ffd89b, #19547b)';
             }
         }
 
@@ -321,12 +388,11 @@
             
             gameState.players.forEach((player, index) => {
                 const cells = document.querySelectorAll('.cell');
-                if (player.position <= 100 && cells[player.position - 1]) {
+                if (player.position >= 1 && player.position <= 100 && cells[player.position - 1]) {
                     const token = document.createElement('div');
-                    token.className = 'player';
+                    token.className = `player player-${index}`;
                     token.style.background = playerColors[index];
-                    token.style.left = '5px';
-                    token.style.top = '5px';
+                    token.title = `${player.username} (Position: ${player.position})`;
                     cells[player.position - 1].appendChild(token);
                 }
             });
@@ -338,7 +404,6 @@
             const user = gameState.userData;
             if (!user) return;
             
-            // FIX: Proper turn check
             const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
             if (!currentPlayer || currentPlayer.id !== user.id) {
                 return showNotification("Wait for your turn!");
@@ -346,31 +411,47 @@
             
             const diceBtn = document.getElementById('diceBtn');
             diceBtn.disabled = true;
+            diceBtn.classList.add('rolling');
             
-            const diceValue = Math.floor(Math.random() * 6) + 1;
-            
-            try {
-                const response = await fetch(gameState.backendUrl + '/make_move', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        game_code: gameState.gameCode,
-                        user_id: user.id,
-                        dice_value: diceValue
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.error) {
-                    showNotification(result.error);
-                } else {
-                    showNotification(`You rolled ${diceValue}!`);
+            // Dice rolling animation
+            const diceFaces = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+            let rollCount = 0;
+            const rollInterval = setInterval(() => {
+                diceBtn.innerHTML = diceFaces[Math.floor(Math.random() * 6)];
+                rollCount++;
+                if (rollCount > 8) {
+                    clearInterval(rollInterval);
+                    
+                    const diceValue = Math.floor(Math.random() * 6) + 1;
+                    diceBtn.innerHTML = diceFaces[diceValue - 1];
+                    
+                    setTimeout(async () => {
+                        try {
+                            const response = await fetch(gameState.backendUrl + '/make_move', {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({
+                                    game_code: gameState.gameCode,
+                                    user_id: user.id,
+                                    dice_value: diceValue
+                                })
+                            });
+                            
+                            const result = await response.json();
+                            if (result.error) {
+                                showNotification(result.error);
+                            } else {
+                                showNotification(`You rolled ${diceValue}!`);
+                            }
+                        } catch (error) {
+                            showNotification('Error making move');
+                        }
+                        
+                        diceBtn.classList.remove('rolling');
+                        diceBtn.disabled = false;
+                    }, 500);
                 }
-            } catch (error) {
-                showNotification('Error making move');
-            }
-            
-            diceBtn.disabled = false;
+            }, 100);
         }
 
         function showNotification(message) {
@@ -384,4 +465,5 @@
     </script>
 </body>
 </html>
+
 
