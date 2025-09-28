@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake Ladder - 2 Player Game</title>
+    <title>Snake Ladder - 2 Player Game with Voice Chat</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -28,6 +29,7 @@
         }
         .btn-primary { background: #ff6b6b; }
         .btn-secondary { background: #4ecdc4; }
+        .btn-voice { background: #9c27b0; }
         .board {
             display: grid; grid-template-columns: repeat(10, 1fr); 
             width: 100%; aspect-ratio: 1/1; border: 2px solid #333; 
@@ -85,7 +87,7 @@
         .game-info { background: rgba(255,255,255,0.1); padding: 10px; border-radius: 10px; margin: 10px 0; }
         .notification {
             position: fixed; top: 10px; right: 10px; background: #4CAF50; color: white; 
-            padding: 10px; border-radius: 5px; display: none;
+            padding: 10px; border-radius: 5px; display: none; z-index: 1000;
         }
         .waiting { 
             background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px; 
@@ -98,88 +100,80 @@
         .snake { color: #e53e3e; font-size: 12px; position: absolute; bottom: 1px; right: 1px; }
         .ladder { color: #38a169; font-size: 12px; position: absolute; top: 1px; left: 1px; }
         
-        /* Chat Styles */
-        .chat-container {
-            background: rgba(255,255,255,0.1);
+        /* Voice Chat Styles */
+        .voice-chat-container {
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 10px;
-            padding: 10px;
+            padding: 15px;
             margin: 10px 0;
-            max-height: 150px;
-            overflow-y: auto;
         }
-        .chat-message {
-            padding: 5px;
-            margin: 3px 0;
-            border-radius: 8px;
-            font-size: 12px;
-        }
-        .chat-message.own {
-            background: rgba(76, 175, 80, 0.3);
-            text-align: right;
-        }
-        .chat-message.other {
-            background: rgba(255, 255, 255, 0.2);
-        }
-        .chat-input-container {
+        .voice-controls {
             display: flex;
-            gap: 10px;
-            margin: 10px 0;
-        }
-        .chat-input {
-            flex: 1;
-            padding: 10px;
-            border-radius: 10px;
-            border: none;
-            font-size: 14px;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
         }
         .voice-btn {
-            background: #ff6b6b;
-            border: none;
-            border-radius: 10px;
             padding: 10px 15px;
+            border: none;
+            border-radius: 20px;
+            font-size: 14px;
             cursor: pointer;
-            color: white;
-            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s;
         }
-        .voice-recording {
-            background: #e53e3e;
+        .voice-btn-mic {
+            background: #4CAF50;
+            color: white;
+        }
+        .voice-btn-mic.muted {
+            background: #f44336;
+        }
+        .voice-btn-speaker {
+            background: #2196F3;
+            color: white;
+        }
+        .voice-btn-speaker.muted {
+            background: #757575;
+        }
+        .voice-participants {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .voice-participant {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        .voice-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4CAF50;
+            transition: all 0.3s;
+        }
+        .voice-indicator.speaking {
+            background: #ff9800;
+            box-shadow: 0 0 8px #ff9800;
             animation: pulse 1s infinite;
         }
         @keyframes pulse {
             0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+            50% { transform: scale(1.2); }
             100% { transform: scale(1); }
         }
-        .voice-message {
-            background: rgba(255, 107, 107, 0.3);
-            padding: 8px;
-            border-radius: 8px;
-            margin: 5px 0;
-            display: flex;
-            align-items: center;
-            gap: 8px;
+        .participant-name {
+            flex: 1;
         }
-        .play-btn {
-            background: #4CAF50;
-            border: none;
-            border-radius: 50%;
-            width: 25px;
-            height: 25px;
-            cursor: pointer;
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .recording-indicator {
-            display: none;
-            background: #e53e3e;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            margin: 5px 0;
-            text-align: center;
-            animation: pulse 1s infinite;
+        .voice-status {
+            font-size: 12px;
+            color: #ccc;
         }
     </style>
 </head>
@@ -212,21 +206,23 @@
             <div class="dice-container">
                 <button class="dice" id="diceBtn" onclick="rollDice()">🎲</button>
             </div>
-
-            <!-- Chat Section -->
-            <div class="chat-container" id="chatContainer">
-                <div id="chatMessages"></div>
-            </div>
-
-            <div class="recording-indicator" id="recordingIndicator">
-                🎤 Recording... Release to send
-            </div>
             
-            <div class="chat-input-container">
-                <input type="text" id="chatInput" placeholder="Type a message..." class="chat-input" onkeypress="handleChatInput(event)">
-                <button class="voice-btn" id="voiceBtn" ontouchstart="startVoiceRecording()" ontouchend="stopVoiceRecording()" onmousedown="startVoiceRecording()" onmouseup="stopVoiceRecording()">
-                    🎤
-                </button>
+            <!-- Voice Chat Section -->
+            <div class="voice-chat-container" id="voiceChatContainer" style="display: none;">
+                <h3 style="text-align: center; margin-bottom: 10px;">🎤 Voice Chat</h3>
+                <div class="voice-controls">
+                    <button class="voice-btn voice-btn-mic" id="micBtn" onclick="toggleMicrophone()">
+                        <span id="micIcon">🎤</span>
+                        <span id="micText">Mic On</span>
+                    </button>
+                    <button class="voice-btn voice-btn-speaker" id="speakerBtn" onclick="toggleSpeaker()">
+                        <span id="speakerIcon">🔊</span>
+                        <span id="speakerText">Speaker On</span>
+                    </button>
+                </div>
+                <div class="voice-participants" id="voiceParticipants">
+                    <!-- Participants will be added here dynamically -->
+                </div>
             </div>
             
             <button class="btn" onclick="showMainMenu()" style="background: #666;">🏠 Main Menu</button>
@@ -246,17 +242,23 @@
             gameActive: false,
             gameCode: null,
             userData: null,
-            backendUrl: 'https://cot-8kof.onrender.com/api',
-            chatMessages: [],
-            voiceMessages: []
+            backendUrl: 'https://cot-8kof.onrender.com/api'
         };
+
+        // Voice Chat Variables
+        let socket = null;
+        let localStream = null;
+        let audioContext = null;
+        let destinationNode = null;
+        let mediaRecorder = null;
+        let isRecording = false;
+        let isMicMuted = false;
+        let isSpeakerMuted = false;
+        let voiceParticipants = {};
+        let audioElements = {};
 
         let tg = window.Telegram?.WebApp;
         let pollInterval;
-        let mediaRecorder;
-        let audioChunks = [];
-        let isRecording = false;
-        let recordingTimer;
 
         function initGame() {
             if (tg) {
@@ -273,6 +275,7 @@
 
         function showMainMenu() {
             clearInterval(pollInterval);
+            leaveVoiceRoom();
             document.getElementById('mainMenu').style.display = 'block';
             document.getElementById('gameScreen').style.display = 'none';
             document.getElementById('joinSection').style.display = 'none';
@@ -347,6 +350,7 @@
             document.getElementById('mainMenu').style.display = 'none';
             document.getElementById('gameScreen').style.display = 'block';
             createBoard();
+            initializeVoiceChat();
         }
 
         function startGamePolling() {
@@ -385,23 +389,19 @@
             gameState.currentPlayer = gameData.current_turn ? parseInt(gameData.current_turn) : null;
             gameState.gameActive = gameData.status === 'playing';
             
-            // Update chat and voice messages
-            if (gameData.chat_messages) {
-                gameState.chatMessages = gameData.chat_messages;
-            }
-            if (gameData.voice_messages) {
-                gameState.voiceMessages = gameData.voice_messages;
-            }
-            updateChatDisplay();
-            
             const waitingDiv = document.getElementById('waitingMessage');
             if (gameData.status === 'waiting') {
                 waitingDiv.style.display = 'block';
                 document.getElementById('gameCodeDisplay').textContent = gameState.gameCode;
                 document.getElementById('diceBtn').style.display = 'none';
+                document.getElementById('voiceChatContainer').style.display = 'none';
             } else {
                 waitingDiv.style.display = 'none';
                 document.getElementById('diceBtn').style.display = 'block';
+                document.getElementById('voiceChatContainer').style.display = 'block';
+                
+                // Update voice participants
+                updateVoiceParticipants();
             }
             
             updatePlayersInfo();
@@ -505,6 +505,7 @@
             gameState.players.forEach((player, index) => {
                 const cells = document.querySelectorAll('.cell');
                 if (player.position >= 1 && player.position <= 100) {
+                    // Find the cell with matching position number
                     const cell = Array.from(cells).find(cell => {
                         const cellNumber = parseInt(cell.textContent);
                         return cellNumber === player.position;
@@ -521,191 +522,6 @@
             });
         }
 
-        // Chat Functions
-        function updateChatDisplay() {
-            const chatContainer = document.getElementById('chatMessages');
-            chatContainer.innerHTML = '';
-            
-            // Combine text and voice messages and sort by timestamp
-            const allMessages = [...gameState.chatMessages, ...gameState.voiceMessages];
-            allMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-            
-            allMessages.forEach(msg => {
-                const messageDiv = document.createElement('div');
-                const isOwnMessage = msg.user_id === gameState.userData?.id;
-                
-                if (msg.type === 'voice') {
-                    messageDiv.className = `voice-message ${isOwnMessage ? 'own' : 'other'}`;
-                    messageDiv.innerHTML = `
-                        <button class="play-btn" onclick="playVoiceMessage('${msg.audio_url}')">▶️</button>
-                        <div>
-                            <strong>${msg.username}:</strong> Voice message (${msg.duration}s)
-                            <br><small>${new Date(msg.timestamp).toLocaleTimeString()}</small>
-                        </div>
-                    `;
-                } else {
-                    messageDiv.className = `chat-message ${isOwnMessage ? 'own' : 'other'}`;
-                    messageDiv.innerHTML = `
-                        <strong>${msg.username}:</strong> ${msg.message}
-                        <br><small>${new Date(msg.timestamp).toLocaleTimeString()}</small>
-                    `;
-                }
-                
-                chatContainer.appendChild(messageDiv);
-            });
-            
-            // Auto scroll to bottom
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        async function handleChatInput(event) {
-            if (event.key === 'Enter') {
-                const input = document.getElementById('chatInput');
-                const message = input.value.trim();
-                
-                if (message) {
-                    await sendChatMessage(message);
-                    input.value = '';
-                }
-            }
-        }
-
-        async function sendChatMessage(message) {
-            const user = gameState.userData;
-            if (!user || !gameState.gameCode) return;
-            
-            try {
-                const response = await fetch(gameState.backendUrl + '/send_message', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        game_code: gameState.gameCode,
-                        user_id: user.id,
-                        message: message,
-                        type: 'text'
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    updateGameState(); // Refresh to get new messages
-                }
-            } catch (error) {
-                showNotification('Error sending message');
-            }
-        }
-
-        // Voice Recording Functions
-        async function startVoiceRecording() {
-            if (!navigator.mediaDevices || !window.MediaRecorder) {
-                showNotification('Voice recording not supported in this browser');
-                return;
-            }
-            
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 44100
-                    } 
-                });
-                
-                mediaRecorder = new MediaRecorder(stream, {
-                    mimeType: 'audio/webm;codecs=opus'
-                });
-                
-                audioChunks = [];
-                let recordingDuration = 0;
-                
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunks.push(event.data);
-                    }
-                };
-                
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    await sendVoiceMessage(audioBlob, recordingDuration);
-                    stream.getTracks().forEach(track => track.stop());
-                };
-                
-                mediaRecorder.start(1000); // Collect data every second
-                isRecording = true;
-                
-                // Show recording UI
-                document.getElementById('voiceBtn').classList.add('voice-recording');
-                document.getElementById('voiceBtn').innerHTML = '⏺️';
-                document.getElementById('recordingIndicator').style.display = 'block';
-                
-                // Start recording timer
-                recordingTimer = setInterval(() => {
-                    recordingDuration++;
-                    document.getElementById('recordingIndicator').textContent = 
-                        `🎤 Recording... ${recordingDuration}s (Release to send)`;
-                }, 1000);
-                
-            } catch (error) {
-                console.error('Error accessing microphone:', error);
-                showNotification('Error accessing microphone. Please check permissions.');
-            }
-        }
-
-        function stopVoiceRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                isRecording = false;
-                
-                // Clear timer and reset UI
-                clearInterval(recordingTimer);
-                document.getElementById('voiceBtn').classList.remove('voice-recording');
-                document.getElementById('voiceBtn').innerHTML = '🎤';
-                document.getElementById('recordingIndicator').style.display = 'none';
-                document.getElementById('recordingIndicator').textContent = '🎤 Recording... Release to send';
-            }
-        }
-
-        async function sendVoiceMessage(audioBlob, duration) {
-            const user = gameState.userData;
-            if (!user || !gameState.gameCode) return;
-            
-            // In a real app, upload audioBlob to a server and get URL
-            // For demo, we'll use a fake URL
-            const fakeAudioUrl = `https://example.com/voice_${Date.now()}.webm`;
-            
-            try {
-                const response = await fetch(gameState.backendUrl + '/send_voice', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        game_code: gameState.gameCode,
-                        user_id: user.id,
-                        audio_url: fakeAudioUrl,
-                        duration: duration
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    showNotification('Voice message sent!');
-                    updateGameState();
-                } else {
-                    showNotification('Error sending voice message');
-                }
-            } catch (error) {
-                showNotification('Error sending voice message');
-            }
-        }
-
-        function playVoiceMessage(audioUrl) {
-            // In a real app, create audio element and play
-            const audio = new Audio(audioUrl);
-            audio.play().catch(e => {
-                showNotification('Cannot play voice message in demo');
-            });
-        }
-
-        // Dice Roll Function
         async function rollDice() {
             if (!gameState.gameActive) return;
             
@@ -762,12 +578,198 @@
             }, 100);
         }
 
-        function showNotification(message) {
-            const notification = document.getElementById('notification');
-            notification.textContent = message;
-            notification.style.display = 'block';
-           
+        // Voice Chat Functions
+        function initializeVoiceChat() {
+            if (!gameState.gameCode) return;
+            
+            // Connect to WebSocket server
+            const backendUrl = gameState.backendUrl.replace('/api', '');
+            socket = io(backendUrl);
+            
+            socket.on('connect', () => {
+                console.log('Connected to voice server');
+                joinVoiceRoom();
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('Disconnected from voice server');
+            });
+            
+            socket.on('user_joined_voice', (data) => {
+                showNotification(data.message);
+                addVoiceParticipant(data.user_id, data.username);
+            });
+            
+            socket.on('user_left_voice', (data) => {
+                showNotification(data.message);
+                removeVoiceParticipant(data.user_id);
+            });
+            
+            socket.on('voice_stream', (data) => {
+                if (!isSpeakerMuted) {
+                    playAudioStream(data.user_id, data.audio_data);
+                }
+            });
+            
+            socket.on('user_voice_status', (data) => {
+                updateVoiceStatus(data.user_id, data.is_speaking);
+            });
+        }
 
+        function joinVoiceRoom() {
+            if (!socket || !gameState.gameCode || !gameState.userData) return;
+            
+            socket.emit('join_voice_room', {
+                game_code: gameState.gameCode,
+                user_id: gameState.userData.id,
+                username: gameState.userData.first_name || 'Player'
+            });
+            
+            // Add self to participants
+            addVoiceParticipant(gameState.userData.id, gameState.userData.first_name || 'Player', true);
+        }
 
+        function leaveVoiceRoom() {
+            if (!socket || !gameState.gameCode || !gameState.userData) return;
+            
+            socket.emit('leave_voice_room', {
+                game_code: gameState.gameCode,
+                user_id: gameState.userData.id,
+                username: gameState.userData.first_name || 'Player'
+            });
+            
+            // Stop recording if active
+            if (isRecording) {
+                stopRecording();
+            }
+            
+            // Close audio context
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            
+            // Disconnect socket
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        }
 
+        function addVoiceParticipant(userId, username, isSelf = false) {
+            voiceParticipants[userId] = {
+                username: username,
+                isSelf: isSelf,
+                isSpeaking: false
+            };
+            
+            updateVoiceParticipantsUI();
+        }
 
+        function removeVoiceParticipant(userId) {
+            delete voiceParticipants[userId];
+            
+            // Remove audio element if exists
+            if (audioElements[userId]) {
+                delete audioElements[userId];
+            }
+            
+            updateVoiceParticipantsUI();
+        }
+
+        function updateVoiceParticipants() {
+            if (!gameState.players || gameState.players.length === 0) return;
+            
+            // Clear current participants
+            voiceParticipants = {};
+            
+            // Add all players as participants
+            gameState.players.forEach(player => {
+                const isSelf = gameState.userData && player.id === gameState.userData.id;
+                addVoiceParticipant(player.id, player.username, isSelf);
+            });
+        }
+
+        function updateVoiceParticipantsUI() {
+            const container = document.getElementById('voiceParticipants');
+            container.innerHTML = '';
+            
+            Object.keys(voiceParticipants).forEach(userId => {
+                const participant = voiceParticipants[userId];
+                const participantElement = document.createElement('div');
+                participantElement.className = 'voice-participant';
+                
+                participantElement.innerHTML = `
+                    <div class="voice-indicator ${participant.isSpeaking ? 'speaking' : ''}"></div>
+                    <div class="participant-name">${participant.username} ${participant.isSelf ? '(You)' : ''}</div>
+                    <div class="voice-status">${participant.isSpeaking ? 'Speaking...' : 'Silent'}</div>
+                `;
+                
+                container.appendChild(participantElement);
+            });
+        }
+
+        function updateVoiceStatus(userId, isSpeaking) {
+            if (voiceParticipants[userId]) {
+                voiceParticipants[userId].isSpeaking = isSpeaking;
+                updateVoiceParticipantsUI();
+            }
+        }
+
+        async function toggleMicrophone() {
+            if (isMicMuted) {
+                await startRecording();
+            } else {
+                stopRecording();
+            }
+            
+            isMicMuted = !isMicMuted;
+            updateMicButton();
+        }
+
+        async function startRecording() {
+            try {
+                // Request microphone access
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    } 
+                });
+                
+                // Create audio context for processing
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                destinationNode = audioContext.createMediaStreamDestination();
+                
+                // Create media recorder
+                mediaRecorder = new MediaRecorder(localStream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+                
+                let chunks = [];
+                
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        chunks.push(event.data);
+                        
+                        // Convert to base64 for transmission
+                        const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                            const base64data = reader.result.split(',')[1];
+                            
+                            // Send audio data via WebSocket
+                            if (socket && gameState.gameCode && gameState.userData) {
+                                socket.emit('voice_data', {
+                                    game_code: gameState.gameCode,
+                                    user_id: gameState.userData.id,
+                                    audio_data: base64data,
+                                    timestamp: Date.now()
+                                });
+                                
+                                // Update speaking status
+                                socket.emit('voice_status', {
+                                    game_code: gameState.gameCode,
+                                    user_id: gameState.userData.id,
+                                    username: gameState.userData.first_name || 'Player
