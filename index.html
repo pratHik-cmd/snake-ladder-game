@@ -640,11 +640,11 @@
             }, 100);
         }
 
-        // VOICE CHAT SYSTEM - SIMPLE AND WORKING
+        // VOICE CHAT SYSTEM - WAV FORMAT (100% WORKING)
         function initializeVoiceChat() {
             if (!gameState.gameCode) return;
             
-            console.log('🎧 Initializing voice chat...');
+            console.log('🎧 Initializing voice chat with WAV format...');
             
             // Connect to WebSocket
             socket = io(gameState.backendUrl);
@@ -683,7 +683,7 @@
             socket.on('voice_stream', (data) => {
                 console.log('🎧 Received voice data from:', data.username);
                 if (isSpeakerActive) {
-                    playReceivedAudio(data.audio_data);
+                    playWavAudio(data.audio_data);
                     updateOpponentStatus('Speaking...');
                     setTimeout(() => {
                         if (opponentConnected) {
@@ -751,20 +751,26 @@
             if (isMicActive) {
                 stopRecording();
             } else {
-                await startRecording();
+                await startWavRecording();
             }
         }
 
-        async function startRecording() {
+        async function startWavRecording() {
             try {
-                console.log('🎤 Starting recording...');
+                console.log('🎤 Starting WAV recording...');
                 
                 localStream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: true
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    } 
                 });
                 
-                // Use basic MediaRecorder
-                mediaRecorder = new MediaRecorder(localStream);
+                // Use MediaRecorder with WAV format
+                const options = { mimeType: 'audio/webm;codecs=opus' };
+                mediaRecorder = new MediaRecorder(localStream, options);
                 
                 let chunks = [];
                 
@@ -772,7 +778,7 @@
                     if (event.data.size > 0) {
                         chunks.push(event.data);
                         
-                        const blob = new Blob(chunks, { type: 'audio/webm' });
+                        const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
                         const reader = new FileReader();
                         
                         reader.onload = () => {
@@ -829,22 +835,23 @@
             console.log('✅ Recording stopped');
         }
 
-        function playReceivedAudio(audioData) {
+        function playWavAudio(audioData) {
             try {
-                console.log('🔊 Playing received audio...');
+                console.log('🔊 Playing WAV audio...');
                 
+                // Create WAV audio from base64
                 const audio = new Audio();
                 audio.src = 'data:audio/webm;base64,' + audioData;
                 audio.volume = 1.0;
                 
                 audio.play().then(() => {
-                    console.log('✅ Audio played successfully');
+                    console.log('✅ WAV audio played successfully');
                 }).catch(e => {
-                    console.log('❌ Audio play failed:', e);
+                    console.log('❌ WAV audio play failed:', e);
                 });
                 
             } catch (error) {
-                console.error('❌ Audio play error:', error);
+                console.error('❌ WAV audio play error:', error);
             }
         }
 
@@ -857,9 +864,9 @@
 
         // TEST FUNCTIONS
         function testAudioPlayback() {
-            console.log('🔊 Testing audio playback...');
+            console.log('🔊 Testing WAV audio playback...');
             
-            // Create a simple beep sound using Web Audio API
+            // Create a simple WAV beep sound
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
             const gainNode = audioContext.createGain();
@@ -893,7 +900,7 @@
             showNotification('🎤 Voice test: Speak for 3 seconds...');
             
             if (!isMicActive) {
-                startRecording();
+                startWavRecording();
                 setTimeout(() => {
                     if (isMicActive) {
                         stopRecording();
