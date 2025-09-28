@@ -223,8 +223,16 @@
         }
 
         function updateGameUI(gameData) {
-            gameState.players = Object.values(gameData.players || {});
-            gameState.currentPlayer = gameData.current_turn;
+            // Convert players object to array
+            const playersArray = Object.entries(gameData.players || {}).map(([id, player]) => ({
+                id: parseInt(id), // Convert back to number for comparison
+                username: player.username,
+                position: player.position,
+                color: player.color
+            }));
+            
+            gameState.players = playersArray;
+            gameState.currentPlayer = gameData.current_turn ? parseInt(gameData.current_turn) : null;
             gameState.gameActive = gameData.status === 'playing';
             
             const waitingDiv = document.getElementById('waitingMessage');
@@ -266,7 +274,8 @@
             container.innerHTML = '';
             
             gameState.players.forEach((player, index) => {
-                const isCurrent = player.id == gameState.currentPlayer;
+                // FIX: Compare as numbers
+                const isCurrent = player.id === gameState.currentPlayer;
                 container.innerHTML += `
                     <div style="display: flex; justify-content: space-between; padding: 5px; 
                          background: ${isCurrent ? 'rgba(255,255,255,0.2)' : 'transparent'};">
@@ -292,11 +301,19 @@
                 return;
             }
             
-            const currentPlayer = gameState.players.find(p => p.id == gameState.currentPlayer);
+            const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
             const user = gameState.userData;
-            const isMyTurn = currentPlayer && user && currentPlayer.id == user.id;
             
-            status.innerHTML = `🎯 ${currentPlayer?.username}'s Turn - ${isMyTurn ? 'Your turn!' : 'Waiting...'}`;
+            // FIX: Proper turn check
+            const isMyTurn = currentPlayer && user && currentPlayer.id === user.id;
+            
+            if (isMyTurn) {
+                status.innerHTML = `🎯 YOUR TURN - Roll the dice!`;
+                document.getElementById('diceBtn').disabled = false;
+            } else {
+                status.innerHTML = `⏳ ${currentPlayer?.username}'s turn - Waiting...`;
+                document.getElementById('diceBtn').disabled = true;
+            }
         }
 
         function placePlayers() {
@@ -321,8 +338,9 @@
             const user = gameState.userData;
             if (!user) return;
             
-            const currentPlayer = gameState.players.find(p => p.id == gameState.currentPlayer);
-            if (!currentPlayer || currentPlayer.id != user.id) {
+            // FIX: Proper turn check
+            const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
+            if (!currentPlayer || currentPlayer.id !== user.id) {
                 return showNotification("Wait for your turn!");
             }
             
@@ -332,7 +350,7 @@
             const diceValue = Math.floor(Math.random() * 6) + 1;
             
             try {
-                await fetch(gameState.backendUrl + '/make_move', {
+                const response = await fetch(gameState.backendUrl + '/make_move', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
@@ -341,6 +359,13 @@
                         dice_value: diceValue
                     })
                 });
+                
+                const result = await response.json();
+                if (result.error) {
+                    showNotification(result.error);
+                } else {
+                    showNotification(`You rolled ${diceValue}!`);
+                }
             } catch (error) {
                 showNotification('Error making move');
             }
