@@ -95,8 +95,8 @@
             width: 100%; padding: 12px; border-radius: 10px; 
             border: none; margin: 10px 0; font-size: 16px;
         }
-        .snake { color: #e53e3e; font-size: 12px; }
-        .ladder { color: #38a169; font-size: 12px; }
+        .snake { color: #e53e3e; font-size: 12px; position: absolute; bottom: 1px; right: 1px; }
+        .ladder { color: #38a169; font-size: 12px; position: absolute; top: 1px; left: 1px; }
     </style>
 </head>
 <body>
@@ -298,21 +298,19 @@
             const board = document.getElementById('gameBoard');
             board.innerHTML = '';
             
-            // PERFECT BOARD NUMBERING: 1 to 100
-            // Bottom row: 1-10 (left to right)
-            // Next row: 11-20 (right to left) and so on...
-            for (let row = 9; row >= 0; row--) {
+            // PERFECT BOARD: 1 at bottom-left, 100 at top-right
+            for (let row = 0; row < 10; row++) {
                 for (let col = 0; col < 10; col++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
                     
                     let position;
                     if (row % 2 === 0) {
-                        // Even rows (9,7,5,3,1): left to right
-                        position = row * 10 + col + 1;
+                        // Even rows: left to right
+                        position = 100 - (row * 10) - col;
                     } else {
-                        // Odd rows (8,6,4,2,0): right to left
-                        position = (row + 1) * 10 - col;
+                        // Odd rows: right to left
+                        position = 100 - (row * 10) - (9 - col);
                     }
                     
                     cell.innerHTML = `<div>${position}</div>`;
@@ -391,12 +389,20 @@
             
             gameState.players.forEach((player, index) => {
                 const cells = document.querySelectorAll('.cell');
-                if (player.position >= 1 && player.position <= 100 && cells[player.position - 1]) {
-                    const token = document.createElement('div');
-                    token.className = `player player-${index}`;
-                    token.style.background = playerColors[index];
-                    token.title = `${player.username} (Position: ${player.position})`;
-                    cells[player.position - 1].appendChild(token);
+                if (player.position >= 1 && player.position <= 100) {
+                    // Find the cell with matching position number
+                    const cell = Array.from(cells).find(cell => {
+                        const cellNumber = parseInt(cell.textContent);
+                        return cellNumber === player.position;
+                    });
+                    
+                    if (cell) {
+                        const token = document.createElement('div');
+                        token.className = `player player-${index}`;
+                        token.style.background = playerColors[index];
+                        token.title = `${player.username} (Position: ${player.position})`;
+                        cell.appendChild(token);
+                    }
                 }
             });
         }
@@ -468,6 +474,7 @@
     </script>
 </body>
 </html>
+
 
 
 
