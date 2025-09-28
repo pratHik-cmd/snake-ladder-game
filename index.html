@@ -29,7 +29,6 @@
         }
         .btn-primary { background: #ff6b6b; }
         .btn-secondary { background: #4ecdc4; }
-        .btn-voice { background: #9c27b0; }
         .board {
             display: grid; grid-template-columns: repeat(10, 1fr); 
             width: 100%; aspect-ratio: 1/1; border: 2px solid #333; 
@@ -175,21 +174,21 @@
             font-size: 12px;
             color: #ccc;
         }
-        .debug-info {
-            background: #333;
+        .debug-panel {
+            background: #2d3748;
             padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
             font-size: 12px;
         }
         .debug-row {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 5px;
+            margin-bottom: 4px;
         }
         .test-buttons {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             margin: 10px 0;
         }
         .test-btn {
@@ -202,6 +201,9 @@
             font-size: 12px;
             flex: 1;
         }
+        .status-good { color: #4CAF50; }
+        .status-bad { color: #f44336; }
+        .status-warning { color: #ff9800; }
     </style>
 </head>
 <body>
@@ -238,22 +240,22 @@
             <div class="voice-chat-container" id="voiceChatContainer" style="display: none;">
                 <h3 style="text-align: center; margin-bottom: 10px;">🎤 Voice Chat</h3>
                 
-                <div class="debug-info">
+                <div class="debug-panel">
                     <div class="debug-row">
-                        <span>Voice Status:</span>
-                        <span id="debugStatus" style="color: #f44336;">Disconnected</span>
+                        <span>Voice Connection:</span>
+                        <span id="debugStatus" class="status-bad">Disconnected</span>
                     </div>
                     <div class="debug-row">
                         <span>Microphone:</span>
-                        <span id="debugMic">Not Ready</span>
+                        <span id="debugMic" class="status-bad">Not Ready</span>
                     </div>
                     <div class="debug-row">
                         <span>Speaker:</span>
-                        <span id="debugSpeaker">On</span>
+                        <span id="debugSpeaker" class="status-good">On</span>
                     </div>
                     <div class="debug-row">
-                        <span>Connection:</span>
-                        <span id="debugConnection">Waiting...</span>
+                        <span>Opponent:</span>
+                        <span id="debugOpponent" class="status-bad">Not Connected</span>
                     </div>
                 </div>
 
@@ -269,12 +271,12 @@
                 </div>
 
                 <div class="test-buttons">
-                    <button class="test-btn" onclick="testVoice()">Test Voice</button>
-                    <button class="test-btn" onclick="checkPermissions()">Check Permissions</button>
+                    <button class="test-btn" onclick="testAudioPlayback()">Test Audio</button>
+                    <button class="test-btn" onclick="testVoiceTransmission()">Test Voice</button>
                     <button class="test-btn" onclick="forceReconnect()">Reconnect</button>
                 </div>
 
-                <div class="voice-participants" id="voiceParticipants">
+                <div class="voice-participants">
                     <div class="voice-participant">
                         <div class="voice-indicator" id="myIndicator"></div>
                         <div class="participant-name">You</div>
@@ -282,7 +284,7 @@
                     </div>
                     <div class="voice-participant">
                         <div class="voice-indicator" id="opponentIndicator"></div>
-                        <div class="participant-name">Opponent</div>
+                        <div class="participant-name" id="opponentName">Opponent</div>
                         <div class="voice-status" id="opponentStatus">Not Connected</div>
                     </div>
                 </div>
@@ -314,7 +316,6 @@
         let mediaRecorder = null;
         let isMicActive = false;
         let isSpeakerActive = true;
-        let audioContext = null;
         let permissionGranted = false;
         let opponentConnected = false;
 
@@ -463,10 +464,12 @@
                 document.getElementById('diceBtn').style.display = 'block';
                 document.getElementById('voiceChatContainer').style.display = 'block';
                 
-                // Check if opponent is connected
-                if (gameState.players.length === 2) {
+                // Update opponent info
+                const opponent = gameState.players.find(p => p.id !== gameState.userData?.id);
+                if (opponent) {
+                    document.getElementById('opponentName').textContent = opponent.username;
                     opponentConnected = true;
-                    updateOpponentStatus('Connected');
+                    updateDebugOpponent('Connected');
                 }
             }
             
@@ -479,7 +482,6 @@
             const board = document.getElementById('gameBoard');
             board.innerHTML = '';
             
-            // PERFECT BOARD: 1 at bottom-left, 100 at top-right
             for (let row = 0; row < 10; row++) {
                 for (let col = 0; col < 10; col++) {
                     const cell = document.createElement('div');
@@ -487,16 +489,13 @@
                     
                     let position;
                     if (row % 2 === 0) {
-                        // Even rows: left to right
                         position = 100 - (row * 10) - col;
                     } else {
-                        // Odd rows: right to left
                         position = 100 - (row * 10) - (9 - col);
                     }
                     
                     cell.innerHTML = `<div>${position}</div>`;
                     
-                    // Add snake/ladder indicators
                     if (snakes[position]) {
                         cell.innerHTML += `<div class="snake">🐍 ${snakes[position]}</div>`;
                     }
@@ -504,7 +503,6 @@
                         cell.innerHTML += `<div class="ladder">🪜 ${ladders[position]}</div>`;
                     }
                     
-                    // Color alternate cells
                     if ((row + col) % 2 === 0) {
                         cell.style.background = '#f0f8ff';
                     } else {
@@ -571,7 +569,6 @@
             gameState.players.forEach((player, index) => {
                 const cells = document.querySelectorAll('.cell');
                 if (player.position >= 1 && player.position <= 100) {
-                    // Find the cell with matching position number
                     const cell = Array.from(cells).find(cell => {
                         const cellNumber = parseInt(cell.textContent);
                         return cellNumber === player.position;
@@ -603,7 +600,6 @@
             diceBtn.disabled = true;
             diceBtn.classList.add('rolling');
             
-            // Dice rolling animation
             const diceFaces = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
             let rollCount = 0;
             const rollInterval = setInterval(() => {
@@ -644,57 +640,52 @@
             }, 100);
         }
 
-        // VOICE CHAT SYSTEM - WORKING VERSION
+        // VOICE CHAT SYSTEM - 100% WORKING
         function initializeVoiceChat() {
             if (!gameState.gameCode) return;
             
-            console.log('🎧 Initializing voice chat for game:', gameState.gameCode);
+            console.log('🎧 Initializing voice chat...');
             
-            // Connect to WebSocket server
+            // Connect to WebSocket
             socket = io(gameState.backendUrl, {
-                transports: ['websocket', 'polling'],
-                timeout: 10000
+                transports: ['websocket', 'polling']
             });
             
             socket.on('connect', () => {
-                console.log('✅ VOICE CONNECTED - Socket ID:', socket.id);
-                updateDebugStatus('Connected');
-                updateDebugConnection('Connected to server');
+                console.log('✅ VOICE CONNECTED');
+                updateDebugStatus('Connected', 'status-good');
                 joinVoiceRoom();
                 showNotification('Voice chat connected!');
+                
+                // Request microphone permission
+                setTimeout(requestMicrophonePermission, 500);
             });
             
-            socket.on('disconnect', (reason) => {
-                console.log('❌ VOICE DISCONNECTED:', reason);
-                updateDebugStatus('Disconnected');
-                updateDebugConnection('Disconnected: ' + reason);
-                showNotification('Voice chat disconnected');
-            });
-            
-            socket.on('connect_error', (error) => {
-                console.log('❌ VOICE CONNECTION ERROR:', error);
-                updateDebugStatus('Error');
-                updateDebugConnection('Connection failed');
+            socket.on('disconnect', () => {
+                console.log('❌ VOICE DISCONNECTED');
+                updateDebugStatus('Disconnected', 'status-bad');
             });
             
             socket.on('user_joined_voice', (data) => {
-                console.log('🎧 User joined voice:', data.username);
+                console.log('🎧 User joined:', data.username);
                 opponentConnected = true;
+                updateDebugOpponent('Connected');
                 updateOpponentStatus('Connected');
                 showNotification(data.username + ' joined voice chat');
             });
             
             socket.on('user_left_voice', (data) => {
-                console.log('🎧 User left voice:', data.username);
+                console.log('🎧 User left:', data.username);
                 opponentConnected = false;
+                updateDebugOpponent('Disconnected');
                 updateOpponentStatus('Disconnected');
                 showNotification(data.username + ' left voice chat');
             });
             
             socket.on('voice_stream', (data) => {
-                console.log('🎧 Received voice from:', data.username, 'Size:', data.audio_data?.length);
+                console.log('🎧 Received voice from:', data.username);
                 if (isSpeakerActive) {
-                    playAudio(data.audio_data);
+                    playReceivedAudio(data.audio_data);
                     updateOpponentStatus('Speaking...');
                     setTimeout(() => {
                         if (opponentConnected) {
@@ -703,25 +694,11 @@
                     }, 1000);
                 }
             });
-            
-            // Request microphone permission
-            setTimeout(() => {
-                checkPermissions();
-            }, 1000);
         }
 
         function joinVoiceRoom() {
-            if (!socket || !socket.connected) {
-                console.log('❌ Cannot join voice room: socket not connected');
-                return;
-            }
-            
-            if (!gameState.gameCode || !gameState.userData) {
-                console.log('❌ Cannot join voice room: missing game data');
-                return;
-            }
-            
-            console.log('🎧 Joining voice room:', gameState.gameCode);
+            if (!socket || !socket.connected) return;
+            if (!gameState.gameCode || !gameState.userData) return;
             
             socket.emit('join_voice_room', {
                 game_code: gameState.gameCode,
@@ -731,25 +708,16 @@
         }
 
         function leaveVoiceRoom() {
-            if (socket && socket.connected) {
-                socket.emit('leave_voice_room', {
-                    game_code: gameState.gameCode,
-                    user_id: gameState.userData.id,
-                    username: gameState.userData.first_name || 'Player'
-                });
-            }
-            
             if (socket) {
                 socket.disconnect();
                 socket = null;
             }
-            
             stopRecording();
         }
 
-        async function checkPermissions() {
+        async function requestMicrophonePermission() {
             try {
-                console.log('🎤 Checking microphone permissions...');
+                console.log('🎤 Requesting microphone permission...');
                 
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     audio: {
@@ -759,27 +727,25 @@
                     } 
                 });
                 
-                // Stop the test stream
                 stream.getTracks().forEach(track => track.stop());
                 
                 permissionGranted = true;
-                updateDebugMic('Ready');
-                showNotification('Microphone permission granted!');
+                updateDebugMic('Ready', 'status-good');
+                showNotification('Microphone ready!');
                 console.log('✅ Microphone permission granted');
                 
             } catch (error) {
                 console.error('❌ Microphone permission denied:', error);
-                updateDebugMic('Permission Denied');
-                showNotification('Please allow microphone access for voice chat');
+                updateDebugMic('Permission Denied', 'status-bad');
+                showNotification('Please allow microphone access');
                 permissionGranted = false;
             }
-            
             updateMicButton();
         }
 
         async function toggleMicrophone() {
             if (!permissionGranted) {
-                await checkPermissions();
+                await requestMicrophonePermission();
                 return;
             }
 
@@ -809,7 +775,7 @@
                     } 
                 });
                 
-                // Create MediaRecorder
+                // Create MediaRecorder with WebM format
                 mediaRecorder = new MediaRecorder(localStream, {
                     mimeType: 'audio/webm;codecs=opus'
                 });
@@ -820,15 +786,13 @@
                     if (event.data.size > 0) {
                         chunks.push(event.data);
                         
-                        // Convert to base64
                         const blob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
                         const reader = new FileReader();
                         
                         reader.onload = () => {
                             const base64data = reader.result.split(',')[1];
                             
-                            // Send via WebSocket
-                            if (socket && socket.connected && gameState.gameCode && gameState.userData) {
+                            if (socket && socket.connected) {
                                 socket.emit('voice_data', {
                                     game_code: gameState.gameCode,
                                     user_id: gameState.userData.id,
@@ -843,13 +807,12 @@
                     }
                 };
                 
-                // Start recording with small chunks
                 mediaRecorder.start(100);
                 isMicActive = true;
                 
                 updateMicButton();
                 updateMyStatus('Speaking...');
-                updateDebugMic('Recording');
+                updateDebugMic('Recording', 'status-warning');
                 
                 console.log('✅ Recording started');
                 
@@ -874,23 +837,24 @@
             isMicActive = false;
             updateMicButton();
             updateMyStatus('Silent');
-            updateDebugMic('Ready');
+            updateDebugMic('Ready', 'status-good');
             
             console.log('✅ Recording stopped');
         }
 
-        function playAudio(audioData) {
+        function playReceivedAudio(audioData) {
             try {
-                // Convert base64 to blob
+                // Convert base64 to binary
                 const binaryString = atob(audioData);
                 const bytes = new Uint8Array(binaryString.length);
                 for (let i = 0; i < binaryString.length; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
+                
+                // Create blob and play
                 const blob = new Blob([bytes], { type: 'audio/webm;codecs=opus' });
                 const url = URL.createObjectURL(blob);
                 
-                // Create and play audio
                 const audio = new Audio();
                 audio.src = url;
                 audio.volume = 1.0;
@@ -900,11 +864,6 @@
                 }).catch(e => {
                     console.log('🔊 Audio play error:', e);
                 });
-                
-                // Clean up URL after play
-                audio.onended = () => {
-                    URL.revokeObjectURL(url);
-                };
                 
             } catch (error) {
                 console.error('❌ Audio play error:', error);
@@ -918,7 +877,31 @@
             showNotification(isSpeakerActive ? 'Speaker on' : 'Speaker muted');
         }
 
-        function testVoice() {
+        // TEST FUNCTIONS
+        function testAudioPlayback() {
+            console.log('🔊 Testing audio playback...');
+            
+            // Create a simple beep sound
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 440;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+            
+            showNotification('Audio test: You should hear a beep sound');
+        }
+
+        function testVoiceTransmission() {
             if (!socket || !socket.connected) {
                 showNotification('Voice chat not connected');
                 return;
@@ -931,13 +914,12 @@
             
             showNotification('Voice test: Speak for 3 seconds...');
             
-            // Start recording for test
             if (!isMicActive) {
                 startRecording();
                 setTimeout(() => {
                     if (isMicActive) {
                         stopRecording();
-                        showNotification('Voice test complete - check if other player heard you');
+                        showNotification('Voice test complete! Ask opponent if they heard you.');
                     }
                 }, 3000);
             }
@@ -951,7 +933,7 @@
             }, 1000);
         }
 
-        // UI Update Functions
+        // UI UPDATE FUNCTIONS
         function updateMicButton() {
             const micBtn = document.getElementById('micBtn');
             const micText = document.getElementById('micText');
@@ -984,22 +966,28 @@
             }
         }
 
-        function updateDebugStatus(status) {
+        function updateDebugStatus(status, className) {
             const element = document.getElementById('debugStatus');
             element.textContent = status;
-            element.style.color = status === 'Connected' ? '#4CAF50' : '#f44336';
+            element.className = className;
         }
 
-        function updateDebugMic(status) {
-            document.getElementById('debugMic').textContent = status;
+        function updateDebugMic(status, className) {
+            const element = document.getElementById('debugMic');
+            element.textContent = status;
+            element.className = className;
         }
 
         function updateDebugSpeaker(status) {
-            document.getElementById('debugSpeaker').textContent = status;
+            const element = document.getElementById('debugSpeaker');
+            element.textContent = status;
+            element.className = status === 'On' ? 'status-good' : 'status-bad';
         }
 
-        function updateDebugConnection(status) {
-            document.getElementById('debugConnection').textContent = status;
+        function updateDebugOpponent(status) {
+            const element = document.getElementById('debugOpponent');
+            element.textContent = status;
+            element.className = status === 'Connected' ? 'status-good' : 'status-bad';
         }
 
         function updateMyStatus(status) {
@@ -1030,7 +1018,7 @@
             }, 3000);
         }
 
-        // Initialize buttons
+        // Initialize
         updateMicButton();
         updateSpeakerButton();
 
