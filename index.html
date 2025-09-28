@@ -3,728 +3,245 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snake Ladder - Telegram Game</title>
+    <title>Snake Ladder - 2 Player Game</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            color: white;
+            min-height: 100vh; padding: 20px; color: white;
         }
-
-        .container {
-            max-width: 400px;
-            margin: 0 auto;
-        }
-
+        .container { max-width: 400px; margin: 0 auto; }
         .glass-effect {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.1); 
             backdrop-filter: blur(10px);
-            border-radius: 20px;
+            border-radius: 20px; 
             border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 20px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            padding: 20px; 
         }
-
-        h1 {
-            text-align: center;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        h1 { text-align: center; font-size: 2em; margin-bottom: 10px; }
+        .btn {
+            padding: 15px; border: none; border-radius: 10px; 
+            font-size: 1em; font-weight: bold; cursor: pointer; 
+            width: 100%; margin: 10px 0; color: white;
         }
-
-        .subtitle {
-            text-align: center;
-            opacity: 0.9;
-            margin-bottom: 30px;
-            font-size: 1.1em;
-        }
-
-        /* Game Mode Buttons */
-        .mode-buttons {
-            display: grid;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .mode-btn {
-            padding: 15px;
-            border: none;
-            border-radius: 15px;
-            font-size: 1.1em;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .mode-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-
-        .vs-computer { 
-            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
-            color: white;
-        }
-
-        .vs-friends { 
-            background: linear-gradient(135deg, #4ecdc4, #44a08d);
-            color: white;
-        }
-
-        /* Board Styles */
-        .board-container {
-            position: relative;
-            margin: 20px auto;
-        }
-
+        .btn-primary { background: #ff6b6b; }
+        .btn-secondary { background: #4ecdc4; }
         .board {
-            display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            grid-template-rows: repeat(10, 1fr);
-            width: 100%;
-            aspect-ratio: 1/1;
-            border: 3px solid #2d3748;
-            border-radius: 10px;
-            background: white;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: grid; grid-template-columns: repeat(10, 1fr); 
+            width: 100%; aspect-ratio: 1/1; border: 2px solid #333; 
+            border-radius: 10px; background: white; margin: 15px 0;
         }
-
-        .cell {
-            border: 1px solid #cbd5e0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            position: relative;
-            background: #f7fafc;
+        .cell { border: 1px solid #ddd; position: relative; }
+        .cell-number { position: absolute; top: 2px; left: 2px; font-size: 8px; color: #666; }
+        .player { width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; position: absolute; }
+        .dice { 
+            width: 60px; height: 60px; background: #ffd89b; 
+            border: none; border-radius: 10px; font-size: 24px; 
+            cursor: pointer; margin: 10px auto; display: block;
         }
-
-        .cell-number {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            font-size: 9px;
-            color: #718096;
-            font-weight: 600;
-        }
-
-        /* Snake and Ladder indicators */
-        .snake-head {
-            position: absolute;
-            bottom: 2px;
-            right: 2px;
-            font-size: 12px;
-        }
-
-        .snake-tail {
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            color: #e53e3e;
-            font-size: 9px;
-            font-weight: bold;
-        }
-
-        .ladder-bottom {
-            position: absolute;
-            bottom: 2px;
-            left: 2px;
-            font-size: 12px;
-        }
-
-        .ladder-top {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            color: #38a169;
-            font-size: 9px;
-            font-weight: bold;
-        }
-
-        .player {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            border: 2px solid white;
-            position: absolute;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
-        /* Lines for snakes and ladders */
-        .snake-line {
-            position: absolute;
-            background: #e53e3e;
-            height: 2px;
-            transform-origin: 0 0;
-            z-index: 5;
-        }
-
-        .ladder-line {
-            position: absolute;
-            background: #38a169;
-            height: 2px;
-            transform-origin: 0 0;
-            z-index: 5;
-        }
-
-        /* Dice */
-        .dice-container {
-            display: flex;
-            justify-content: center;
-            margin: 20px 0;
-        }
-
-        .dice {
-            width: 70px;
-            height: 70px;
-            background: linear-gradient(135deg, #ffd89b, #19547b);
-            border: none;
-            border-radius: 15px;
-            font-size: 30px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-            transition: all 0.3s ease;
-        }
-
-        .dice:active {
-            transform: scale(0.95);
-        }
-
-        .dice.rolling {
-            animation: roll 0.6s ease-in-out;
-        }
-
-        @keyframes roll {
-            0% { transform: rotate(0deg) scale(1); }
-            50% { transform: rotate(180deg) scale(1.1); }
-            100% { transform: rotate(360deg) scale(1); }
-        }
-
-        /* Player Info */
-        .players-info {
-            display: grid;
-            gap: 8px;
-            margin: 15px 0;
-        }
-
-        .player-badge {
-            padding: 10px;
-            border-radius: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 14px;
-            font-weight: 500;
-        }
-
-        .current-turn {
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.5);
-        }
-
-        /* Controls */
-        .controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 15px;
-        }
-
-        .control-btn {
-            padding: 12px;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .rules-btn {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-        }
-
-        .exit-btn {
-            background: rgba(239, 68, 68, 0.3);
-            color: #fecaca;
-        }
-
-        .control-btn:hover {
-            transform: translateY(-1px);
-        }
-
-        /* Game Status */
-        .game-status {
-            text-align: center;
-            font-size: 1.2em;
-            font-weight: 600;
-            margin: 15px 0;
-            padding: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-        }
-
-        /* Multiplayer Info */
-        .multiplayer-info {
-            display: none;
-            margin: 10px 0;
-        }
-
-        .game-code {
-            background: rgba(255,255,255,0.1);
-            padding: 10px;
-            border-radius: 10px;
-            text-align: center;
-            font-family: monospace;
-            font-size: 1.1em;
-            margin-bottom: 10px;
-        }
-
-        .move-history {
-            max-height: 80px;
-            overflow-y: auto;
-            background: rgba(0,0,0,0.2);
-            padding: 8px;
-            border-radius: 8px;
-            font-size: 11px;
-        }
-
+        .game-info { background: rgba(255,255,255,0.1); padding: 10px; border-radius: 10px; margin: 10px 0; }
         .notification {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: #4CAF50;
-            color: white;
-            padding: 12px;
-            border-radius: 8px;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            position: fixed; top: 10px; right: 10px; background: #4CAF50; color: white; 
+            padding: 10px; border-radius: 5px; display: none;
         }
-
-        /* Player Selection */
-        .player-selection {
-            display: none;
+        .waiting { 
+            background: rgba(255,255,255,0.2); padding: 15px; border-radius: 10px; 
+            text-align: center; margin: 10px 0;
         }
-
-        /* Loading Spinner */
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top: 4px solid white;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Responsive */
-        @media (max-width: 480px) {
-            .container {
-                padding: 10px;
-            }
-            
-            h1 {
-                font-size: 2em;
-            }
-            
-            .mode-btn {
-                padding: 12px;
-                font-size: 1em;
-            }
-            
-            .dice {
-                width: 60px;
-                height: 60px;
-                font-size: 24px;
-            }
+        input {
+            width: 100%; padding: 12px; border-radius: 10px; 
+            border: none; margin: 10px 0; font-size: 16px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Selection Screen -->
-        <div id="selectionScreen">
-            <div class="glass-effect">
-                <h1>🐍 Snakes & Ladders</h1>
-                <p class="subtitle">Classic Board Game • 4 Players Max</p>
-                
-                <div class="mode-buttons">
-                    <button class="mode-btn vs-computer" onclick="startGame('computer')">
-                        🤖 Play vs Computer
-                    </button>
-                    <button class="mode-btn vs-friends" onclick="showPlayerSelection()">
-                        👥 Play with Friends
-                    </button>
-                </div>
-
-                <div style="text-align: center; opacity: 0.8; font-size: 0.9em;">
-                    <p>🎯 Perfect for 2-4 players</p>
-                    <p>🎲 Smooth dice rolling</p>
-                    <p>📱 Mobile optimized</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Player Selection Screen -->
-        <div id="playerSelectionScreen" class="glass-effect player-selection">
-            <h2>Select Players</h2>
-            <div class="mode-buttons">
-                <button class="mode-btn vs-friends" onclick="startGame(2)">
-                    👥 2 Players
-                </button>
-                <button class="mode-btn vs-friends" onclick="startGame(3)">
-                    👥👥 3 Players
-                </button>
-                <button class="mode-btn vs-friends" onclick="startGame(4)">
-                    👥👥👥 4 Players
-                </button>
-            </div>
-            <button class="control-btn rules-btn" onclick="showSelectionScreen()" style="width: 100%; margin-top: 10px;">
-                🔙 Back
-            </button>
-        </div>
-
-        <!-- Game Screen -->
-        <div id="gameScreen" class="glass-effect" style="display: none;">
-            <!-- Multiplayer Info -->
-            <div id="multiplayerInfo" class="multiplayer-info">
-                <div class="game-code" id="gameCodeDisplay">Game Code: Loading...</div>
-                <div class="move-history" id="moveHistory"></div>
-            </div>
-
-            <div class="game-status" id="gameStatus">🎯 Your Turn - Roll the Dice!</div>
+        <div id="mainMenu" class="glass-effect">
+            <h1>🐍 Snakes & Ladders</h1>
+            <p style="text-align: center;">2 Player Game</p>
             
-            <div class="players-info" id="playersInfo"></div>
+            <button class="btn btn-primary" onclick="createGame()">🎮 Create Game</button>
+            <button class="btn btn-secondary" onclick="showJoinScreen()">👥 Join Game</button>
 
-            <div class="board-container">
-                <div class="board" id="gameBoard"></div>
-                <div id="linesContainer"></div>
-            </div>
-
-            <div class="dice-container">
-                <button class="dice" id="dice" onclick="rollDice()">🎲</button>
-            </div>
-
-            <div class="controls">
-                <button class="control-btn rules-btn" onclick="showRules()">📖 Rules</button>
-                <button class="control-btn exit-btn" onclick="endGame()">🚪 Exit</button>
+            <div id="joinSection" style="display: none;">
+                <input type="text" id="gameCodeInput" placeholder="Enter Game Code">
+                <button class="btn btn-secondary" onclick="joinGame()">Join Game</button>
             </div>
         </div>
 
-        <!-- Loading Screen -->
-        <div id="loadingScreen" class="glass-effect" style="display: none; text-align: center;">
-            <div class="spinner"></div>
-            <p style="margin-top: 15px;">Loading game...</p>
+        <div id="gameScreen" class="glass-effect" style="display: none;">
+            <div id="waitingMessage" class="waiting">
+                <h3>⏳ Waiting for Player 2...</h3>
+                <p>Game Code: <strong id="gameCodeDisplay"></strong></p>
+            </div>
+
+            <div class="game-info" id="gameStatus">🎯 Your Turn</div>
+            <div class="game-info" id="playersInfo"></div>
+            
+            <div class="board" id="gameBoard"></div>
+
+            <button class="dice" id="diceBtn" onclick="rollDice()">🎲</button>
+            
+            <button class="btn" onclick="showMainMenu()" style="background: #666;">🏠 Main Menu</button>
         </div>
     </div>
 
-    <!-- Notification -->
     <div class="notification" id="notification"></div>
 
-    <!-- Rules Modal -->
-    <div id="rulesModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 1000;">
-        <div class="glass-effect" style="max-width: 300px; margin: 20px;">
-            <h3 style="margin-bottom: 15px;">📖 Game Rules</h3>
-            <div style="text-align: left; line-height: 1.6;">
-                <p>• 🎲 Roll dice to move forward</p>
-                <p>• 🐍 Snake head → Go to tail</p>
-                <p>• 🪜 Ladder bottom → Climb to top</p>
-                <p>• 🏁 Reach exactly 100 to win</p>
-                <p>• 👥 2-4 players supported</p>
-                <p>• 🔄 Turns go clockwise</p>
-            </div>
-            <button class="control-btn rules-btn" onclick="hideRules()" style="width: 100%; margin-top: 15px;">
-                👍 Got It!
-            </button>
-        </div>
-    </div>
-
     <script>
-        // Game Configuration
-        const snakes = {
-            16: 6, 47: 26, 49: 11, 56: 53, 62: 19, 
-            64: 60, 87: 24, 93: 73, 95: 75, 98: 78
-        };
+        const snakes = {16:6,47:26,49:11,56:53,62:19,64:60,87:24,93:73,95:75,98:78};
+        const ladders = {1:38,4:14,9:31,21:42,28:84,36:44,51:67,71:91,80:100};
+        const playerColors = ['#ff6b6b', '#4ecdc4'];
         
-        const ladders = {
-            1: 38, 4: 14, 9: 31, 21: 42, 28: 84, 
-            36: 44, 51: 67, 71: 91, 80: 100
-        };
-
-        const playerColors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4'];
-        const playerIcons = ['🔴', '🔵', '🟢', '🟡'];
-
-        // Global Game State
         let gameState = {
             players: [],
-            currentPlayer: 0,
+            currentPlayer: null,
             gameActive: false,
-            isMultiplayer: false,
             gameCode: null,
             userData: null,
-            backendUrl: 'https://cot-8kof.onrender.com/api' // Your backend URL
+            backendUrl: 'https://cot-8kof.onrender.com/api'
         };
 
-        // Telegram Web App Initialization
         let tg = window.Telegram?.WebApp;
+        let pollInterval;
 
-        // Initialize Game
         function initGame() {
             if (tg) {
                 tg.expand();
-                tg.enableClosingConfirmation();
                 gameState.userData = tg.initDataUnsafe?.user;
             }
 
-            // Check if joining existing game
             const urlParams = new URLSearchParams(window.location.search);
             const gameCode = urlParams.get('game_code');
-            
             if (gameCode) {
-                gameState.isMultiplayer = true;
-                gameState.gameCode = gameCode;
-                startMultiplayerGame(gameCode);
-            } else {
-                showSelectionScreen();
+                joinGameWithCode(gameCode);
             }
-
-            createBoard();
         }
 
-        // Show selection screen
-        function showSelectionScreen() {
-            document.getElementById('selectionScreen').style.display = 'block';
-            document.getElementById('playerSelectionScreen').style.display = 'none';
+        function showMainMenu() {
+            clearInterval(pollInterval);
+            document.getElementById('mainMenu').style.display = 'block';
             document.getElementById('gameScreen').style.display = 'none';
-            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('joinSection').style.display = 'none';
         }
 
-        // Show player selection
-        function showPlayerSelection() {
-            document.getElementById('selectionScreen').style.display = 'none';
-            document.getElementById('playerSelectionScreen').style.display = 'block';
-            document.getElementById('gameScreen').style.display = 'none';
-            document.getElementById('loadingScreen').style.display = 'none';
+        function showJoinScreen() {
+            document.getElementById('joinSection').style.display = 'block';
         }
 
-        // Show game screen
-        function showGameScreen() {
-            document.getElementById('selectionScreen').style.display = 'none';
-            document.getElementById('playerSelectionScreen').style.display = 'none';
-            document.getElementById('gameScreen').style.display = 'block';
-            document.getElementById('loadingScreen').style.display = 'none';
-        }
-
-        // Show loading screen
-        function showLoadingScreen() {
-            document.getElementById('selectionScreen').style.display = 'none';
-            document.getElementById('playerSelectionScreen').style.display = 'none';
-            document.getElementById('gameScreen').style.display = 'none';
-            document.getElementById('loadingScreen').style.display = 'block';
-        }
-
-        // Start Game
-        function startGame(mode) {
-            showGameScreen();
-            
-            const numPlayers = mode === 'computer' ? 2 : mode;
-            gameState.players = [];
-            gameState.isMultiplayer = false;
-            
-            // Hide multiplayer info for single player
-            document.getElementById('multiplayerInfo').style.display = 'none';
-            
-            for (let i = 0; i < numPlayers; i++) {
-                gameState.players.push({
-                    id: i,
-                    name: i === 0 ? 'You' : (mode === 'computer' && i === 1 ? 'Computer' : `Player ${i+1}`),
-                    position: 1,
-                    color: playerColors[i],
-                    icon: playerIcons[i],
-                    type: mode === 'computer' && i === 1 ? 'computer' : 'human'
-                });
-            }
-            
-            gameState.currentPlayer = 0;
-            gameState.gameActive = true;
-            
-            updatePlayersInfo();
-            updateGameStatus();
-            placePlayers();
-            
-            // Enable dice
-            document.getElementById('dice').disabled = false;
-        }
-
-        // Start Multiplayer Game
-        async function startMultiplayerGame(gameCode) {
-            showLoadingScreen();
+        async function createGame() {
+            const user = gameState.userData || {id: Date.now(), first_name: 'Player'};
             
             try {
-                // First try to join the game
-                const joinResponse = await fetch(`${gameState.backendUrl}/join_game`, {
+                const response = await fetch(gameState.backendUrl + '/create_game', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        game_code: gameCode,
-                        user_id: gameState.userData?.id,
-                        username: gameState.userData?.username || `User${gameState.userData?.id || Date.now()}`
-                    })
-                });
-                
-                if (!joinResponse.ok) {
-                    throw new Error('Failed to join game');
-                }
-                
-                const joinResult = await joinResponse.json();
-                
-                if (joinResult.error) {
-                    showNotification(joinResult.error);
-                    showSelectionScreen();
-                    return;
-                }
-                
-                // Successfully joined, now load game state
-                await loadGameState();
-                
-                showGameScreen();
-                document.getElementById('multiplayerInfo').style.display = 'block';
-                document.getElementById('gameCodeDisplay').textContent = `Game Code: ${gameCode}`;
-                
-            } catch (error) {
-                console.error('Error joining multiplayer game:', error);
-                showNotification('Error joining game');
-                showSelectionScreen();
-            }
-        }
-
-        // Load game state from backend
-        async function loadGameState() {
-            if (!gameState.isMultiplayer) return;
-            
-            try {
-                const response = await fetch(`${gameState.backendUrl}/game_state`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        game_code: gameState.gameCode,
-                        user_id: gameState.userData?.id
-                    })
-                });
-                
-                if (response.ok) {
-                    const gameData = await response.json();
-                    updateGameFromBackend(gameData);
-                } else {
-                    throw new Error('Failed to load game state');
-                }
-            } catch (error) {
-                console.error('Error loading game state:', error);
-                showNotification('Error connecting to server');
-            }
-        }
-
-        // Update game from backend data
-        function updateGameFromBackend(gameData) {
-            if (!gameData.players) return;
-            
-            // Convert players object to array
-            const playersArray = Object.entries(gameData.players).map(([userId, playerData]) => ({
-                id: parseInt(userId),
-                name: playerData.username || `Player ${userId}`,
-                position: playerData.position || 1,
-                color: playerData.color || playerColors[0],
-                icon: playerIcons[Object.keys(gameData.players).indexOf(userId) % playerIcons.length],
-                type: 'human'
-            }));
-            
-            gameState.players = playersArray;
-            gameState.gameActive = gameData.status === 'playing';
-            gameState.currentPlayer = gameData.current_turn;
-            
-            updatePlayersInfo();
-            placePlayers();
-            updateGameStatus();
-            
-            // Update move history
-            if (gameData.moves_history) {
-                updateMoveHistory(gameData.moves_history);
-            }
-            
-            // Enable dice if it's player's turn
-            const dice = document.getElementById('dice');
-            const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-            if (currentPlayer && currentPlayer.id === gameState.userData?.id) {
-                dice.disabled = false;
-            } else {
-                dice.disabled = true;
-            }
-        }
-
-        // Send move to backend
-        async function sendMoveToBackend(diceValue) {
-            if (!gameState.isMultiplayer) return;
-            
-            try {
-                const response = await fetch(`${gameState.backendUrl}/make_move`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        game_code: gameState.gameCode,
-                        user_id: gameState.userData?.id,
-                        dice_value: diceValue,
-                        action: 'make_move'
+                        user_id: user.id,
+                        username: user.first_name || 'Player'
                     })
                 });
                 
                 const result = await response.json();
                 
-                if (result.error) {
-                    showNotification(result.error);
-                    document.getElementById('dice').disabled = false;
-                } else if (result.winner) {
-                    endGame(result.winner);
-                } else {
-                    await loadGameState(); // Reload game state
+                if (result.game_code) {
+                    gameState.gameCode = result.game_code;
+                    showGameScreen();
+                    startGamePolling();
+                    showNotification('Game created! Share code: ' + result.game_code);
                 }
-                
             } catch (error) {
-                console.error('Error sending move:', error);
-                showNotification('Error sending move');
-                document.getElementById('dice').disabled = false;
+                showNotification('Error creating game');
             }
         }
 
-        // Create Board
+        async function joinGame() {
+            const gameCode = document.getElementById('gameCodeInput').value.toUpperCase();
+            if (!gameCode) return showNotification('Enter game code');
+            joinGameWithCode(gameCode);
+        }
+
+        async function joinGameWithCode(gameCode) {
+            const user = gameState.userData || {id: Date.now(), first_name: 'Player'};
+            
+            try {
+                const response = await fetch(gameState.backendUrl + '/join_game', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        game_code: gameCode,
+                        user_id: user.id,
+                        username: user.first_name || 'Player'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    gameState.gameCode = gameCode;
+                    showGameScreen();
+                    startGamePolling();
+                    showNotification('Joined game!');
+                } else {
+                    showNotification(result.error);
+                }
+            } catch (error) {
+                showNotification('Error joining game');
+            }
+        }
+
+        function showGameScreen() {
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('gameScreen').style.display = 'block';
+            createBoard();
+        }
+
+        function startGamePolling() {
+            pollInterval = setInterval(updateGameState, 2000);
+            updateGameState();
+        }
+
+        async function updateGameState() {
+            if (!gameState.gameCode) return;
+            
+            try {
+                const response = await fetch(gameState.backendUrl + '/game_state', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({game_code: gameState.gameCode})
+                });
+                
+                const gameData = await response.json();
+                if (gameData.error) return;
+                
+                updateGameUI(gameData);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function updateGameUI(gameData) {
+            gameState.players = Object.values(gameData.players || {});
+            gameState.currentPlayer = gameData.current_turn;
+            gameState.gameActive = gameData.status === 'playing';
+            
+            const waitingDiv = document.getElementById('waitingMessage');
+            if (gameData.status === 'waiting') {
+                waitingDiv.style.display = 'block';
+                document.getElementById('gameCodeDisplay').textContent = gameState.gameCode;
+                document.getElementById('diceBtn').style.display = 'none';
+            } else {
+                waitingDiv.style.display = 'none';
+                document.getElementById('diceBtn').style.display = 'block';
+            }
+            
+            updatePlayersInfo();
+            updateGameStatus();
+            placePlayers();
+        }
+
         function createBoard() {
             const board = document.getElementById('gameBoard');
             board.innerHTML = '';
@@ -734,380 +251,112 @@
                     const position = row % 2 === 0 ? (row-1)*10 + col : (row-1)*10 + (11-col);
                     const cell = document.createElement('div');
                     cell.className = 'cell';
-                    cell.dataset.position = position;
+                    cell.innerHTML = `<div class="cell-number">${position}</div>`;
                     
-                    // Add number
-                    const number = document.createElement('div');
-                    number.className = 'cell-number';
-                    number.textContent = position;
-                    cell.appendChild(number);
-                    
-                    // Add snake indicators
-                    if (snakes[position]) {
-                        const snakeHead = document.createElement('div');
-                        snakeHead.className = 'snake-head';
-                        snakeHead.textContent = '🐍';
-                        snakeHead.title = `Snake to ${snakes[position]}`;
-                        cell.appendChild(snakeHead);
-                        
-                        const snakeTail = document.createElement('div');
-                        snakeTail.className = 'snake-tail';
-                        snakeTail.textContent = snakes[position];
-                        cell.appendChild(snakeTail);
-                    }
-                    
-                    // Add ladder indicators
-                    if (ladders[position]) {
-                        const ladderBottom = document.createElement('div');
-                        ladderBottom.className = 'ladder-bottom';
-                        ladderBottom.textContent = '🪜';
-                        ladderBottom.title = `Ladder to ${ladders[position]}`;
-                        cell.appendChild(ladderBottom);
-                        
-                        const ladderTop = document.createElement('div');
-                        ladderTop.className = 'ladder-top';
-                        ladderTop.textContent = ladders[position];
-                        cell.appendChild(ladderTop);
-                    }
-                    
-                    // Start and end markers
-                    if (position === 1) {
-                        const start = document.createElement('div');
-                        start.style.position = 'absolute';
-                        start.style.bottom = '2px';
-                        start.style.right = '2px';
-                        start.style.color = 'green';
-                        start.style.fontSize = '8px';
-                        start.style.fontWeight = 'bold';
-                        start.textContent = 'START';
-                        cell.appendChild(start);
-                    }
-                    
-                    if (position === 100) {
-                        const end = document.createElement('div');
-                        end.style.position = 'absolute';
-                        end.style.top = '2px';
-                        end.style.right = '2px';
-                        end.style.color = 'red';
-                        end.style.fontSize = '8px';
-                        end.style.fontWeight = 'bold';
-                        end.textContent = 'END';
-                        cell.appendChild(end);
-                    }
+                    if (snakes[position]) cell.innerHTML += '🐍';
+                    if (ladders[position]) cell.innerHTML += '🪜';
                     
                     board.appendChild(cell);
                 }
             }
-            
-            drawLines();
         }
 
-        // Draw lines for snakes and ladders
-        function drawLines() {
-            const container = document.getElementById('linesContainer');
-            container.innerHTML = '';
-            
-            Object.entries(snakes).forEach(([from, to]) => {
-                drawLine(parseInt(from), to, 'snake-line', '#e53e3e');
-            });
-            
-            Object.entries(ladders).forEach(([from, to]) => {
-                drawLine(parseInt(from), to, 'ladder-line', '#38a169');
-            });
-        }
-
-        function drawLine(fromPos, toPos, className, color) {
-            const fromCell = document.querySelector(`[data-position="${fromPos}"]`);
-            const toCell = document.querySelector(`[data-position="${toPos}"]`);
-            
-            if (!fromCell || !toCell) return;
-            
-            const line = document.createElement('div');
-            line.className = className;
-            line.style.background = color;
-            
-            const fromRect = fromCell.getBoundingClientRect();
-            const toRect = toCell.getBoundingClientRect();
-            const boardRect = document.getElementById('gameBoard').getBoundingClientRect();
-            
-            const x1 = fromRect.left + fromRect.width/2 - boardRect.left;
-            const y1 = fromRect.top + fromRect.height/2 - boardRect.top;
-            const x2 = toRect.left + toRect.width/2 - boardRect.left;
-            const y2 = toRect.top + toRect.height/2 - boardRect.top;
-            
-            const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-            const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
-            
-            line.style.width = length + 'px';
-            line.style.left = x1 + 'px';
-            line.style.top = y1 + 'px';
-            line.style.transform = `rotate(${angle}deg)`;
-            
-            container.appendChild(line);
-        }
-
-        // Update Players Info
         function updatePlayersInfo() {
             const container = document.getElementById('playersInfo');
             container.innerHTML = '';
             
             gameState.players.forEach((player, index) => {
-                const isCurrent = gameState.isMultiplayer ? 
-                    (player.id === gameState.currentPlayer) : (index === gameState.currentPlayer);
-                
-                const badge = document.createElement('div');
-                badge.className = `player-badge ${isCurrent ? 'current-turn' : ''}`;
-                badge.innerHTML = `
-                    <span>${player.icon} ${player.name}</span>
-                    <span>Position: ${player.position}</span>
+                const isCurrent = player.id == gameState.currentPlayer;
+                container.innerHTML += `
+                    <div style="display: flex; justify-content: space-between; padding: 5px; 
+                         background: ${isCurrent ? 'rgba(255,255,255,0.2)' : 'transparent'};">
+                        <span>${player.username}</span>
+                        <span>Pos: ${player.position}</span>
+                    </div>
                 `;
-                container.appendChild(badge);
             });
         }
 
-        // Update Game Status
         function updateGameStatus() {
             const status = document.getElementById('gameStatus');
             
-            // Check for winner
             const winner = gameState.players.find(p => p.position === 100);
             if (winner) {
-                status.innerHTML = `🎉 <strong>${winner.name} Wins!</strong> 🏆`;
-                status.style.background = 'rgba(34, 197, 94, 0.3)';
+                status.innerHTML = `🎉 ${winner.username} Wins!`;
                 gameState.gameActive = false;
                 return;
             }
             
-            // Get current player
-            let currentPlayer;
-            if (gameState.isMultiplayer) {
-                currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-            } else {
-                currentPlayer = gameState.players[gameState.currentPlayer];
-            }
-            
-            if (!currentPlayer) return;
-            
-            const isMyTurn = gameState.isMultiplayer ? 
-                (currentPlayer.id === gameState.userData?.id) : (gameState.currentPlayer === 0);
-            
-            status.innerHTML = `🎯 <strong>${currentPlayer.name}'s Turn</strong> - ${isMyTurn ? 'Roll the Dice!' : 'Waiting...'}`;
-            status.style.background = 'rgba(255, 255, 255, 0.1)';
-        }
-
-        // Place Players on Board
-        function placePlayers() {
-            document.querySelectorAll('.player').forEach(p => p.remove());
-            
-            gameState.players.forEach((player, playerIndex) => {
-                const cell = document.querySelector(`[data-position="${player.position}"]`);
-                if (cell) {
-                    const token = document.createElement('div');
-                    token.className = 'player';
-                    token.style.background = player.color;
-                    
-                    // Position tokens so they don't overlap
-                    const positions = [
-                        { left: '5px', top: '5px' },
-                        { left: '25px', top: '5px' },
-                        { left: '5px', top: '25px' },
-                        { left: '25px', top: '25px' }
-                    ];
-                    
-                    token.style.left = positions[playerIndex % 4].left;
-                    token.style.top = positions[playerIndex % 4].top;
-                    token.title = player.name;
-                    cell.appendChild(token);
-                }
-            });
-        }
-
-        // Update Move History
-        function updateMoveHistory(moves) {
-            const history = document.getElementById('moveHistory');
-            if (!moves || moves.length === 0) {
-                history.innerHTML = 'No moves yet';
+            if (!gameState.gameActive) {
+                status.innerHTML = '⏳ Waiting for players...';
                 return;
             }
             
-            let historyHTML = '';
-            moves.slice(-5).reverse().forEach(move => {
-                const player = gameState.players.find(p => p.id === move.player);
-                if (player) {
-                    historyHTML += `🎲 ${player.name}: ${move.dice_value}<br>`;
-                }
-            });
+            const currentPlayer = gameState.players.find(p => p.id == gameState.currentPlayer);
+            const user = gameState.userData;
+            const isMyTurn = currentPlayer && user && currentPlayer.id == user.id;
             
-            history.innerHTML = historyHTML;
+            status.innerHTML = `🎯 ${currentPlayer?.username}'s Turn - ${isMyTurn ? 'Your turn!' : 'Waiting...'}`;
         }
 
-        // Show Notification
+        function placePlayers() {
+            document.querySelectorAll('.player').forEach(p => p.remove());
+            
+            gameState.players.forEach((player, index) => {
+                const cells = document.querySelectorAll('.cell');
+                if (player.position <= 100 && cells[player.position - 1]) {
+                    const token = document.createElement('div');
+                    token.className = 'player';
+                    token.style.background = playerColors[index];
+                    token.style.left = '5px';
+                    token.style.top = '5px';
+                    cells[player.position - 1].appendChild(token);
+                }
+            });
+        }
+
+        async function rollDice() {
+            if (!gameState.gameActive) return;
+            
+            const user = gameState.userData;
+            if (!user) return;
+            
+            const currentPlayer = gameState.players.find(p => p.id == gameState.currentPlayer);
+            if (!currentPlayer || currentPlayer.id != user.id) {
+                return showNotification("Wait for your turn!");
+            }
+            
+            const diceBtn = document.getElementById('diceBtn');
+            diceBtn.disabled = true;
+            
+            const diceValue = Math.floor(Math.random() * 6) + 1;
+            
+            try {
+                await fetch(gameState.backendUrl + '/make_move', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        game_code: gameState.gameCode,
+                        user_id: user.id,
+                        dice_value: diceValue
+                    })
+                });
+            } catch (error) {
+                showNotification('Error making move');
+            }
+            
+            diceBtn.disabled = false;
+        }
+
         function showNotification(message) {
             const notification = document.getElementById('notification');
             notification.textContent = message;
             notification.style.display = 'block';
-            
-            setTimeout(() => {
-                notification.style.display = 'none';
-            }, 3000);
+            setTimeout(() => notification.style.display = 'none', 3000);
         }
 
-        // Roll Dice
-        async function rollDice() {
-            if (!gameState.gameActive) return;
-            
-            // Check if it's player's turn in multiplayer
-            if (gameState.isMultiplayer) {
-                const currentPlayer = gameState.players.find(p => p.id === gameState.currentPlayer);
-                if (currentPlayer && currentPlayer.id !== gameState.userData?.id) {
-                    showNotification("Wait for your turn!");
-                    return;
-                }
-            }
-            
-            const dice = document.getElementById('dice');
-            dice.classList.add('rolling');
-            dice.disabled = true;
-            
-            setTimeout(async () => {
-                const diceValue = Math.floor(Math.random() * 6) + 1;
-                dice.classList.remove('rolling');
-                dice.innerHTML = ['⚀','⚁','⚂','⚃','⚄','⚅'][diceValue - 1];
-                
-                if (gameState.isMultiplayer) {
-                    await sendMoveToBackend(diceValue);
-                } else {
-                    processMove(diceValue);
-                }
-            }, 600);
-        }
-
-        // Process Move (Single Player)
-        function processMove(diceValue) {
-            const player = gameState.players[gameState.currentPlayer];
-            let newPosition = player.position + diceValue;
-            let message = `${player.name} rolled ${diceValue}`;
-            
-            if (newPosition > 100) {
-                message += ` - Need exact roll! Stay at ${player.position}`;
-                newPosition = player.position;
-                completeTurn(message);
-            } else {
-                moveStepByStep(player, player.position, newPosition, diceValue, message);
-            }
-        }
-
-        // Move Step by Step
-        function moveStepByStep(player, startPos, targetPos, diceValue, message) {
-            let currentStep = 1;
-            
-            function moveNextStep() {
-                if (currentStep > diceValue) {
-                    checkSpecialMove(player, targetPos, message);
-                    return;
-                }
-                
-                player.position = startPos + currentStep;
-                updatePlayersInfo();
-                placePlayers();
-                currentStep++;
-                setTimeout(moveNextStep, 400);
-            }
-            
-            moveNextStep();
-        }
-
-        // Check Special Move
-        function checkSpecialMove(player, position, originalMessage) {
-            let finalPosition = position;
-            let message = originalMessage;
-            
-            if (snakes[position]) {
-                finalPosition = snakes[position];
-                message += ` - 🐍 Snake! ${position} → ${finalPosition}`;
-            } else if (ladders[position]) {
-                finalPosition = ladders[position];
-                message += ` - 🪜 Ladder! ${position} → ${finalPosition}`;
-            } else {
-                message += ` - Moved to ${position}`;
-            }
-            
-            if (finalPosition !== position) {
-                setTimeout(() => {
-                    player.position = finalPosition;
-                    updatePlayersInfo();
-                    placePlayers();
-                    completeTurn(message);
-                }, 600);
-            } else {
-                completeTurn(message);
-            }
-        }
-
-        // Complete Turn
-        function completeTurn(message) {
-            document.getElementById('gameStatus').textContent = message;
-            
-            const player = gameState.players[gameState.currentPlayer];
-            
-            if (player.position === 100) {
-                gameState.gameActive = false;
-                setTimeout(() => {
-                    if (confirm(`${player.name} wins! 🎉\n\nPlay again?`)) {
-                        startGame(gameState.players.length);
-                    }
-                }, 1000);
-                return;
-            }
-            
-            setTimeout(() => {
-                if (!gameState.isMultiplayer) {
-                    gameState.currentPlayer = (gameState.currentPlayer + 1) % gameState.players.length;
-                    
-                    // Computer's turn
-                    const nextPlayer = gameState.players[gameState.currentPlayer];
-                    if (nextPlayer.type === 'computer' && gameState.gameActive) {
-                        setTimeout(() => rollDice(), 1000);
-                    }
-                }
-                
-                updateGameStatus();
-                updatePlayersInfo();
-                placePlayers();
-                
-                const dice = document.getElementById('dice');
-                dice.disabled = false;
-                dice.innerHTML = '🎲';
-                
-            }, 1200);
-        }
-
-        // End Game
-        function endGame(winnerId = null) {
-            if (winnerId) {
-                const winner = gameState.players.find(p => p.id === winnerId);
-                if (winner) {
-                    showNotification(`🎉 ${winner.name} wins the game!`);
-                }
-            }
-            
-            if (confirm('Game ended! Return to main menu?')) {
-                showSelectionScreen();
-                gameState.gameActive = false;
-            }
-        }
-
-        // Show/Hide Rules
-        function showRules() {
-            document.getElementById('rulesModal').style.display = 'flex';
-        }
-
-        function hideRules() {
-            document.getElementById('rulesModal').style.display = 'none';
-        }
-
-        // Initialize when page loads
         window.addEventListener('DOMContentLoaded', initGame);
     </script>
 </body>
 </html>
+
